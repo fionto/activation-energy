@@ -1,10 +1,11 @@
 from pathlib import Path
 
 
-# costruisco Path partendo dal parent del percorso relativo allo script
-# lo script è posizionato alla radice dove ci sono le cartelle delle misure
-raw_dataset_path = Path(__file__).parent / 'data'
-txt_file_path = raw_dataset_path / 'E14_FS' / 'E14_FS_4E-2_675C_100426_164801.txt'
+# I build the Path object starting from where the script resides:
+# The script is located at the project folder root 
+# the measurement (data) directory is located in a subfolder
+raw_dataset_path = Path(__file__).parent.parent / 'data'
+txt_file_path = raw_dataset_path / 'E14_FS' / '20260408_123516_E14FS_P4E-2mbar_T020C.txt'
 
 KEY_VOLTAGE = 'Voltage'
 KEY_CURRENT = 'Current'
@@ -14,26 +15,16 @@ KEY_STD = 'std_dev'
 def _safe_float(value_str: str) -> float:
     """
     Converts a string representation of a number to a float.
-
-    This function handles whitespace stripping and catches conversion errors 
-    gracefully to prevent pipeline crashes on dirty data.
-
-    Args:
-        value_str (str): The string value to convert (e.g., " 18.9 ", "").
-
-    Returns:
-        float: The converted floating-point number. If conversion fails 
-            (e.g., empty string or non-numeric text), returns float('nan').
+    Returns float('nan') if conversion fails, to allow error propagation.
     """
     try:
         return float(value_str.strip())
     except ValueError:
-        # I chose 'nan' instead of 0.0 because 'nan' propagates through math operations.
         return float("nan")
 
 
 def parse_row(row_str: str) -> dict:
-     
+
     fields = [f.strip() for f in row_str.split(',')]
 
     voltage_str, current_str, std_dev_str = fields[:3]
