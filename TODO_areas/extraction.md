@@ -4,10 +4,10 @@
 - [x] Estrazione base da singolo file CSV in dict di liste
 - [x] Parsing sicuro con `_safe_float` e salto riga header
 - [x] Struttura modulare con funzioni dedicate
+- [x] Definire costanti stringa per le chiavi (es. `KEY_VOLTAGE`, `KEY_CURRENT`, `KEY_STD`)
+- [x] Riscrivere `append_point` come fusione generica tra due dict con validazione delle chiavi (stesso set, stesse lunghezze)
 
 ## 🔧 Robustezza & Parsing
-- [ ] Definire costanti stringa per le chiavi (es. `KEY_VOLTAGE`, `KEY_CURRENT`, `KEY_STD`)
-- [ ] Riscrivere `append_point` come fusione generica tra due dict con validazione delle chiavi (stesso set, stesse lunghezze)
 - [ ] Aggiungere controllo sul numero di campi in `parse_row` (evitare `IndexError` su righe troncate o con delimiter extra)
 - [ ] Valutare sostituzione di `.split(',')` con modulo `csv` (gestisce automaticamente spazi, virgolette, righe malformate)
 - [ ] Gestire `StopIteration` in `next(txt_data)` se il file è vuoto o privo di header
