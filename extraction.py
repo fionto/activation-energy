@@ -3,8 +3,8 @@ from pathlib import Path
 
 # costruisco Path partendo dal parent del percorso relativo allo script
 # lo script è posizionato alla radice dove ci sono le cartelle delle misure
-raw_dataset_path = Path(__file__).parent / 'data' / 'E14_FS'
-txt_file_path = raw_dataset_path / 'E14_FS_4E-2_675C_100426_164801.txt'
+raw_dataset_path = Path(__file__).parent / 'data'
+txt_file_path = raw_dataset_path / 'E14_FS' / 'E14_FS_4E-2_675C_100426_164801.txt'
 
 KEY_VOLTAGE = 'Voltage'
 KEY_CURRENT = 'Current'
@@ -91,6 +91,7 @@ def run_extraction(file_path: Path):
     collection = build_collection()
 
     with open(file_path, 'r', encoding='utf-8') as txt_data:
+        
         header_line = next(txt_data)
 
         for raw_line in txt_data:
