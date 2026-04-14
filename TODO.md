@@ -21,8 +21,8 @@ A rough development roadmap from raw file handling to final plotting.
 * [x] Extract voltage, current and standard deviation columns
 * [x] Convert strings to numeric types
 * [ ] Handle headers (skip or detect automatically)
-* [ ] Store data in structured format (e.g., lists, dicts, or pandas DataFrame)
-* [ ] Separate meta / data in the structured dict
+* [x] Store data in structured format (e.g., lists, dicts, or pandas DataFrame)
+* [x] Separate meta / data in the structured dict
 
 ---
 
