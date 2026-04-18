@@ -8,19 +8,18 @@
 - [x] Riscrivere `append_point` come fusione generica tra due dict con validazione delle chiavi (stesso set, stesse lunghezze)
 
 ## 🔧 Robustezza & Parsing
-- [ ] Aggiungere controllo sul numero di campi in `parse_row` (evitare `IndexError` su righe troncate o con delimiter extra)
+- [x] Aggiungere controllo sul numero di campi in `parse_row` (evitare `IndexError` su righe troncate o con delimiter extra)
 - [ ] Valutare sostituzione di `.split(',')` con modulo `csv` (gestisce automaticamente spazi, virgolette, righe malformate)
 - [ ] Gestire `StopIteration` in `next(txt_data)` se il file è vuoto o privo di header
 
 ## 🏗️ Architettura & Manutenibilità
-- [ ] Correggere `Path(file)` → `Path(__file__)` per risoluzione corretta del percorso relativo
 - [ ] Aggiungere docstring complete a tutte le funzioni (args, return, edge cases)
-- [ ] Uniformare i type hints (es. `dict[str, list[float]]` invece di `dict`)
+- [x] Uniformare i type hints (es. `dict[str, list[float]]` invece di `dict`)
 - [ ] Valutare struttura dati dedicata (`dataclass` o `NamedTuple`) per rappresentare un singolo punto misura
 - [ ] Sostituire `print()` con `logging` per tracciabilità e disaccoppiamento output/console
 
 ## 🧪 Validazione & Testing
-- [ ] Aggiungere blocco `if __name__ == "__main__":` con esecuzione protetta e path configurabile
+- [x] Aggiungere blocco `if __name__ == "__main__":` con esecuzione protetta e path configurabile
 - [ ] Preparare file di test sintetici (righe vuote, dati mancanti, formato errato, file vuoto, header assente)
 - [ ] Verificare che la propagazione di `NaN` non interrompa i calcoli futuri su `dV/dI`
 

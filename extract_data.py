@@ -3,29 +3,28 @@ from datetime import datetime
 import pickle
 
 
-# I build the Path object starting from where the script resides:
-# The script is located at the project folder root 
-# the measurement (data) directory is located in a subfolder
-raw_dataset_path = Path(__file__).parent / 'data' / 'E14_FS'
-
-# Dumping in the same folder I am parsing
-save_path = raw_dataset_path / 'iv_curves_E14FS.pkl'
-
 # Constants
 METADATA = "metadata"
-
 KEY_SAMPLE = "sample"
 KEY_TIMESTAMP = "timestamp"
 KEY_PRESSURE = "pressure_mbar"
 KEY_TEMPERATURE = "temperature_k"
 
 DATA = "data"
-
 KEY_VOLTAGE = "Voltage"
 KEY_CURRENT = "Current"
 KEY_STD = "std_dev"
 
 CELSIUS_TO_KELVIN = 273.15
+
+
+# Building the Path object starting from where the script resides:
+# the script is located at the project folder root 
+# the measurement (data) directory is located in a subfolder
+raw_dataset_path = Path(__file__).parent / 'data' / 'E14_FS'
+
+# Dumping in the same folder I am parsing
+save_path = raw_dataset_path / 'iv_curves_E14FS.pkl'
 
 
 def _safe_float(value_str: str) -> float:
@@ -46,7 +45,7 @@ def parse_filename(raw_filename: str) -> dict:
     
     Returns a dictionary with pressure in mbar and temperature in Kelvin.
     """
-    filename = raw_filename.removesuffix(".txt")
+    filename = raw_filename.removesuffix(".txt") # only working from Python 3.9+
     parts = filename.split('_')
     
     if len(parts) != 5:
@@ -76,6 +75,10 @@ def parse_row(row_str: str) -> dict:
      
     fields = [f.strip() for f in row_str.split(',')]
 
+    # TODO: improve control of corrupted/malformed .csv files
+    if len(fields) < 3:
+        raise ValueError(f"Malformed row: {row_str}")
+
     voltage_str, current_str, std_dev_str = fields[:3]
 
     return {
@@ -85,31 +88,47 @@ def parse_row(row_str: str) -> dict:
     }
 
 
-def append_point(collection: dict[str, list[float]], reading: dict[str, float]) -> None:
+def extract_curve_points(file_path: Path) -> list[dict]:
     """
-    Appends values from a single reading to the corresponding lists in a collection.
+    It reads a measurement file and returns the points as a dictionary list.
+
+    Each element has the keys KEY_VOLTAGE, KEY_CURRENT, and KEY_STD.
+    Responsibility for how these points are accumulated lies with the caller.
     """
-
-    for key in collection:
-        collection[key].append(reading[key])
-
-
-def extract_curve_points(file_path: Path, data_container: dict):
+    
+    # First check: do not want to open files when size is 0 bytes. Common in LabVIEW.
+    if file_path.stat().st_size == 0:
+        # just return empty to skip processing
+        return []
+    
+    points = []
 
     with open(file_path, 'r', encoding='utf-8') as txt_data:
         
-        next(txt_data)
+        # Second check: files with just the header. Also common in LabVIEW.
+        try:
+            next(txt_data)  # skip header
+        except StopIteration:
+            # File is empty; return the empty list immediately
+            return points
 
         for raw_line in txt_data:
             raw_line = raw_line.strip()
-
             if not raw_line:
                 continue
-            
-            append_point(data_container, parse_row(raw_line))
+            points.append(parse_row(raw_line))
+
+    return points
 
 
-def build_data_structure():
+def build_data_structure() -> dict:
+    """
+    Constructs and returns a standardized data structure for storing measurement data.
+
+    The returned dictionary contains two main keys:
+    - METADATA: An empty dictionary intended for storing metadata related to the data.
+    - DATA: A dictionary with three keys, each mapping to an empty list.
+    """
     return {
         METADATA : {},
         DATA: {
@@ -120,22 +139,72 @@ def build_data_structure():
     }
 
 
-def extract_from_dir(directory_path: Path):
-    
+def transpose_curve_data(points: list[dict]) -> dict[str, list[float]]:
+    """
+    Transposes a list of row-dictionaries into a dictionary of column-lists.
+    Example: [{'V': 1, 'I': 2}, {'V': 3, 'I': 4}] -> {'V': [1, 3], 'I': [2, 4]}
+    """
+    # Initializing the structure based on the known keys
+    structured_data = {
+        KEY_VOLTAGE: [],
+        KEY_CURRENT: [],
+        KEY_STD: [],
+    }
+
+    for point in points:
+        for key in structured_data:
+            structured_data[key].append(point[key])
+
+    return structured_data
+
+
+def extract_from_dir(directory_path: Path) -> list[dict]:
+    """
+    Iterates over the .txt files in the directory and assembles the list of curves.
+
+    Each element is a dictionary with the keys METADATA and DATA.
+    """ 
     data_from_dir = []    
     
-    for file in directory_path.iterdir():
+    # filename starts with date, so it should be ordered chronologically
+    # the folder might contain other files, in the future I should filter better
+    for file in sorted(directory_path.glob("*.txt")):
+      
+        # using helper functions I extract metadata from filenames and
+        # raw data from the content of .txt files
+        metadata = parse_filename(file.name)
+        raw_points = extract_curve_points(file)
+
+        # organize my list of dict into a dictionary of column-lists
+        columnar_data = transpose_curve_data(raw_points)
         
-        if file.suffix == '.txt':
-            single_curve = build_data_structure()
-            single_curve[METADATA] = parse_filename(file.name)
-            extract_curve_points(file, single_curve[DATA])
-            data_from_dir.append(single_curve)
+        # assemble final object, might want to change it to pandas or numpy later
+        data_from_dir.append({
+            METADATA: metadata,
+            DATA: columnar_data
+        })
 
     return data_from_dir
 
-# Save your data (your list of dictionaries)
-with open(save_path, 'wb') as f:
-    data = extract_from_dir(raw_dataset_path)
-    pickle.dump(data, f)
+
+def dump_data(save_path: Path, data: list[dict]):
+    with open(save_path, 'wb') as f:
+        pickle.dump(data, f)
     print(f"Saved {len(data)} curves to {save_path}")
+
+
+def main():
+
+    if not raw_dataset_path.exists():
+        # Using SystemExit is a clean way to quit with an error message
+        raise SystemExit(f"Error: Directory not found at {raw_dataset_path}")
+    
+    if not raw_dataset_path.is_dir():
+        raise SystemExit(f"Error: {raw_dataset_path} exists but is not a directory.")
+    
+    data = extract_from_dir(raw_dataset_path)
+    dump_data(save_path, data)
+
+
+if __name__ == "__main__":
+    main()
