@@ -3,14 +3,18 @@ from datetime import datetime
 import pickle
 
 
-# Constants
-METADATA = "metadata"
+# CONSTANTS
+# METADATA: Information about the environment (Sample ID, Timestamp, P, T)
+# contains geometric information on how the measurement was spatially performed 
+# (Van Der Pauw alignement)
+METADATA = "metadata" # container name
 KEY_SAMPLE = "sample"
 KEY_TIMESTAMP = "timestamp"
-KEY_PRESSURE = "pressure_mbar"
+KEY_PRESSURE = "pressure_torr"
 KEY_TEMPERATURE = "temperature_k"
-
-DATA = "data"
+KEY_GEOMETRY = 'alignment'
+# DATA: Contains the arrays of measured values
+DATA = "curves" # container name, could be more than 1 curve if Van Der Pauw
 KEY_VOLTAGE = "Voltage"
 KEY_CURRENT = "Current"
 KEY_STD = "std_dev"
@@ -21,10 +25,10 @@ CELSIUS_TO_KELVIN = 273.15
 # Building the Path object starting from where the script resides:
 # the script is located at the project folder root 
 # the measurement (data) directory is located in a subfolder
-raw_dataset_path = Path(__file__).parent / 'data' / 'E14_FS'
+raw_dataset_path = Path(__file__).parent / 'data' / 'UH70-FS'
 
 # Dumping in the same folder I am parsing
-save_path = raw_dataset_path / 'iv_curves_E14FS.pkl'
+save_path = raw_dataset_path / 'iv_curves_UH70FS.pkl'
 
 
 def _safe_float(value_str: str) -> float:
@@ -38,33 +42,56 @@ def _safe_float(value_str: str) -> float:
         return float("nan")
 
 
+def check_alignment(alignment_str: str | None) -> str | None:
+    if alignment_str is None:
+        return None
+    match alignment_str:
+        case 'AB': return "horizontal"
+        case 'BA': return "vertical"
+        case _: 
+            raise ValueError(f"Invalid VdP configuration: {alignment_str}")
+
+
 def parse_filename(raw_filename: str) -> dict:
     """
-    Parses a filename with the structure:
-    YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE.txt
-    
-    Returns a dictionary with pressure in mbar and temperature in Kelvin.
+    Parses a measurement filename with the structure:
+
+        YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE[_(AB|BA)].txt
+
+    where the Van der Pauw configuration suffix (AB or BA) is optional.
+
+    Extracts metadata from the filename and returns a dictionary containing:
+        - sample name
+        - timestamp (as a datetime object)
+        - pressure (in Torr)
+        - temperature (in Kelvin)
+        - configuration (str: 'AB', 'BA', or None if not present)
+
     """
     filename = raw_filename.removesuffix(".txt") # only working from Python 3.9+
     parts = filename.split('_')
     
-    if len(parts) != 5:
+    if len(parts) not in {5, 6}:
         raise ValueError(
-            f"Expected filename with 5 fields separated by '_', "
+            f"Expected filename with 5 or 6 fields separated by '_', "
             f"got {len(parts)}: {raw_filename}"
         )
     
-    date_str, time_str, sample_str, pressure_str, temperature_str = parts
+    date_str, time_str, sample_str, pressure_str, temp_str, *extra = parts
+    alignment_raw = extra[0] if extra else None
+    alignment = check_alignment(alignment_raw)
     
     timestamp = datetime.strptime(date_str + time_str, '%Y%m%d%H%M%S')
-    pressure_mbar = _safe_float(pressure_str.removeprefix('P').removesuffix('mbar'))
-    temperature_k = _safe_float(temperature_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN
+    pressure_torr = _safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
+    temperature_k = _safe_float(temp_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN 
+    alignment = check_alignment(alignment_raw)
     
     return {
         KEY_SAMPLE : sample_str,
         KEY_TIMESTAMP : timestamp,
-        KEY_PRESSURE : pressure_mbar,
+        KEY_PRESSURE : pressure_torr,
         KEY_TEMPERATURE : temperature_k,
+        KEY_GEOMETRY : alignment,
     }
     
 
