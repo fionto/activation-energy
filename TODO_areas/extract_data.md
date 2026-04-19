@@ -5,7 +5,6 @@
 - [x] **Verify file size before reading**: Use `file_path.stat().st_size` to identify empty files before attempting to open them.
 - [x] **Verify directory existence:** Add a check using `raw_dataset_path.exists()` and `is_dir()` before calling `.iterdir()` to prevent runtime crashes.
 - [ ] **Replace silent `NaN` failures:** Modify `_safe_float` to raise a custom `DataParsingError` or log a warning. Why allow corrupted data to silently enter your final dataset?
-- [ ] **Add Python version check:** Since you use `removesuffix`, add a check at the top of the script to ensure the environment is running Python 3.9+.
 
 ## 2. Structural Design
 - [x] **Encapsulate execution in `main()`:** Move the logic currently under `if __name__ == "__main__"` into a dedicated `main()` function to prevent global scope pollution.
