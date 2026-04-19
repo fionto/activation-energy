@@ -10,7 +10,7 @@
 ## 🔧 Robustezza & Parsing
 - [x] Aggiungere controllo sul numero di campi in `parse_row` (evitare `IndexError` su righe troncate o con delimiter extra)
 - [ ] Valutare sostituzione di `.split(',')` con modulo `csv` (gestisce automaticamente spazi, virgolette, righe malformate)
-- [ ] Gestire `StopIteration` in `next(txt_data)` se il file è vuoto o privo di header
+- [x] Gestire `StopIteration` in `next(txt_data)` se il file è vuoto o privo di header
 
 ## 🏗️ Architettura & Manutenibilità
 - [ ] Aggiungere docstring complete a tutte le funzioni (args, return, edge cases)

@@ -11,7 +11,7 @@ A rough development roadmap from raw file handling to final plotting.
 * [x] Filter `.txt` files only
 * [x] Open files using `with open(...)`
 * [ ] Read file contents safely
-* [ ] Handle empty or malformed files
+* [x] Handle empty or malformed files
 
 ---
 
@@ -20,7 +20,7 @@ A rough development roadmap from raw file handling to final plotting.
 * [x] Split lines into columns (CSV-like parsing)
 * [x] Extract voltage, current and standard deviation columns
 * [x] Convert strings to numeric types
-* [ ] Handle headers (skip or detect automatically)
+* [x] Handle headers (skip or detect automatically)
 * [x] Store data in structured format (e.g., lists, dicts, or pandas DataFrame)
 * [x] Separate meta / data in the structured dict
 
@@ -31,7 +31,7 @@ A rough development roadmap from raw file handling to final plotting.
 * [x] Extract temperature from filename or file content
 * [x] Standardize temperature units (e.g., Kelvin)
 * [x] Associate each dataset with its temperature
-* [ ] Sort datasets by temperature
+* [x] Sort datasets by temperature
 
 ---
 
