@@ -4,9 +4,9 @@ import pickle
 
 
 raw_dataset_path = Path(__file__).parent / 'data' / 'UH70-FS'
-save_path = raw_dataset_path / 'iv_curves_UH70FS.pkl'
+save_path = raw_dataset_path / 'elaborated_UH70FS.pkl'
 
 with open(save_path, 'rb') as f:
     data = pickle.load(f)
-    print(type(data))
-    print(data)
+
+print(data[0])
