@@ -26,12 +26,12 @@ KEY_GLOBAL_LINEAR_FIT = 'global_linear_fit'
 # AT THIS POINT:
 # Working on an already created pickle (no raw TXT parsing here)
 # Goal is to validate each step of the pipeline independently
-raw_dataset_path = Path(__file__).parent / 'data' / 'UH70-FS'
-load_path = raw_dataset_path / 'iv_curves_UH70FS.pkl'
+dataset_dir = Path(__file__).parent / 'data' / 'UH70-FS'
+pickle_curves_input = dataset_dir / 'iv_curves_UH70FS.pkl'
 
 # Always write to a new file (avoid accidental overwrite of previous stages)
 # This lets me keep intermediate versions while iterating
-save_path = raw_dataset_path / 'elaborated_UH70FS.pkl'
+pickle_elaborations_output = dataset_dir / 'elaborated_UH70FS.pkl'
 
 
 def calc_resistance(voltages, currents):
@@ -138,14 +138,14 @@ def main():
     """
 
     # Load raw I(V) measurements
-    with open(load_path, 'rb') as f:
+    with open(pickle_curves_input, 'rb') as f:
         datasets = pickle.load(f)
 
     # Curve-level processing (no grouping yet)
     processed_datasets = [add_elaborations(d) for d in datasets]
 
     # Save intermediate pipeline result
-    dump_data(save_path, processed_datasets)
+    dump_data(pickle_elaborations_output, processed_datasets)
 
 
 if __name__ == "__main__":
