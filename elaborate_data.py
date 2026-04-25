@@ -3,6 +3,25 @@ import numpy as np
 from scipy import stats
 import pickle
 
+# CONSTANTS
+# METADATA: Information about the environment (Sample ID, Timestamp, P, T)
+# contains geometric information on how the measurement was spatially performed 
+# (Van Der Pauw alignement)
+METADATA = "metadata" # container name
+KEY_SAMPLE = "sample"
+KEY_TIMESTAMP = "timestamp"
+KEY_PRESSURE = "pressure_torr"
+KEY_TEMPERATURE = "temperature_k"
+KEY_GEOMETRY = 'alignment'
+# DATA: Contains the arrays of measured values
+DATA = "curves" # container name, could be more than 1 curve if Van Der Pauw
+KEY_VOLTAGE = "Voltage"
+KEY_CURRENT = "Current"
+KEY_STD = "std_dev"
+# ELABORATIONS: Contains the elaborations
+ELABORATIONS = 'elaborations'
+KEY_GLOBAL_LINEAR_FIT = 'global_linear_fit'
+
 
 # AT THIS POINT:
 # Working on an already created pickle (no raw TXT parsing here)
@@ -61,11 +80,11 @@ def compute_elaborations(dataset):
 
     # Convert to numpy for numerical operations
     # (later: could already be stored as arrays or in a dataframe)
-    V = np.array(dataset['curves']['Voltage'])
-    I = np.array(dataset['curves']['Current'])
+    V = np.array(dataset[DATA][KEY_VOLTAGE])
+    I = np.array(dataset[DATA][KEY_CURRENT])
 
     return {
-        'resistance_fit': calc_resistance(V, I),
+        KEY_GLOBAL_LINEAR_FIT : calc_resistance(V, I),
         # future: add filtering, hysteresis analysis, etc.
     }
 
@@ -88,7 +107,7 @@ def add_elaborations(dataset):
     # rebuilds dataset and adds a new top-level field
     return {
         **dataset, # dictionary unpacking
-        'elaborations': compute_elaborations(dataset)
+        ELABORATIONS : compute_elaborations(dataset)
     }
 
 
