@@ -25,10 +25,10 @@ CELSIUS_TO_KELVIN = 273.15
 # Building the Path object starting from where the script resides:
 # the script is located at the project folder root 
 # the measurement (data) directory is located in a subfolder
-raw_dataset_path = Path(__file__).parent / 'data' / 'UH70-FS'
+dataset_dir = Path(__file__).parent / 'data' / 'UH70-FS'
 
 # Dumping in the same folder I am parsing
-save_path = raw_dataset_path / 'iv_curves_UH70FS.pkl'
+pickle_output_path = dataset_dir / 'iv_curves_UH70FS.pkl'
 
 
 def _safe_float(value_str: str) -> float:
@@ -52,7 +52,7 @@ def check_alignment(alignment_str: str | None) -> str | None:
             raise ValueError(f"Invalid VdP configuration: {alignment_str}")
 
 
-def parse_filename(raw_filename: str) -> dict:
+def parse_filename(filename: str) -> dict:
     """
     Parses a measurement filename with the structure:
 
@@ -68,13 +68,13 @@ def parse_filename(raw_filename: str) -> dict:
         - configuration (str: 'AB', 'BA', or None if not present)
 
     """
-    filename = raw_filename.removesuffix(".txt") # only working from Python 3.9+
+    filename = filename.removesuffix(".txt") # only working from Python 3.9+
     parts = filename.split('_')
     
     if len(parts) not in {5, 6}:
         raise ValueError(
             f"Expected filename with 5 or 6 fields separated by '_', "
-            f"got {len(parts)}: {raw_filename}"
+            f"got {len(parts)}: {filename}"
         )
     
     date_str, time_str, sample_str, pressure_str, temp_str, *extra = parts
@@ -100,13 +100,13 @@ def parse_row(row_str: str) -> dict:
     Parse a single CSV row string into a dictionary of numeric values.
     """
      
-    fields = [f.strip() for f in row_str.split(',')]
+    csv_fields = [f.strip() for f in row_str.split(',')]
 
     # TODO: improve control of corrupted/malformed .csv files
-    if len(fields) < 3:
+    if len(csv_fields) < 3:
         raise ValueError(f"Malformed row: {row_str}")
 
-    voltage_str, current_str, std_dev_str = fields[:3]
+    voltage_str, current_str, std_dev_str = csv_fields[:3]
 
     return {
         KEY_VOLTAGE : _safe_float(voltage_str),
@@ -115,7 +115,7 @@ def parse_row(row_str: str) -> dict:
     }
 
 
-def extract_curve_points(file_path: Path) -> list[dict]:
+def extract_curve_points(measurement_file: Path) -> list[dict]:
     """
     It reads a measurement file and returns the points as a dictionary list.
 
@@ -124,46 +124,28 @@ def extract_curve_points(file_path: Path) -> list[dict]:
     """
     
     # First check: do not want to open files when size is 0 bytes. Common in LabVIEW.
-    if file_path.stat().st_size == 0:
+    if measurement_file.stat().st_size == 0:
         # just return empty to skip processing
         return []
     
-    points = []
+    measurements = []
 
-    with open(file_path, 'r', encoding='utf-8') as txt_data:
+    with open(measurement_file, 'r', encoding='utf-8') as txt_data:
         
         # Second check: files with just the header. Also common in LabVIEW.
         try:
             next(txt_data)  # skip header
         except StopIteration:
             # File is empty; return the empty list immediately
-            return points
+            return measurements
 
-        for raw_line in txt_data:
-            raw_line = raw_line.strip()
-            if not raw_line:
+        for line_str in txt_data:
+            line_str = line_str.strip()
+            if not line_str:
                 continue
-            points.append(parse_row(raw_line))
+            measurements.append(parse_row(line_str))
 
-    return points
-
-
-def build_data_structure() -> dict:
-    """
-    Constructs and returns a standardized data structure for storing measurement data.
-
-    The returned dictionary contains two main keys:
-    - METADATA: An empty dictionary intended for storing metadata related to the data.
-    - DATA: A dictionary with three keys, each mapping to an empty list.
-    """
-    return {
-        METADATA : {},
-        DATA: {
-            KEY_VOLTAGE : [],
-            KEY_CURRENT : [],
-            KEY_STD: [],
-        },
-    }
+    return measurements
 
 
 def transpose_curve_data(points: list[dict]) -> dict[str, list[float]]:
@@ -172,17 +154,17 @@ def transpose_curve_data(points: list[dict]) -> dict[str, list[float]]:
     Example: [{'V': 1, 'I': 2}, {'V': 3, 'I': 4}] -> {'V': [1, 3], 'I': [2, 4]}
     """
     # Initializing the structure based on the known keys
-    structured_data = {
+    columnar_data = {
         KEY_VOLTAGE: [],
         KEY_CURRENT: [],
         KEY_STD: [],
     }
 
     for point in points:
-        for key in structured_data:
-            structured_data[key].append(point[key])
+        for key in columnar_data:
+            columnar_data[key].append(point[key])
 
-    return structured_data
+    return columnar_data
 
 
 def extract_from_dir(directory_path: Path) -> list[dict]:
@@ -191,7 +173,7 @@ def extract_from_dir(directory_path: Path) -> list[dict]:
 
     Each element is a dictionary with the keys METADATA and DATA.
     """ 
-    data_from_dir = []    
+    curve_dataset = []    
     
     # filename starts with date, so it should be ordered chronologically
     # the folder might contain other files, in the future I should filter better
@@ -206,12 +188,12 @@ def extract_from_dir(directory_path: Path) -> list[dict]:
         columnar_data = transpose_curve_data(raw_points)
         
         # assemble final object, might want to change it to pandas or numpy later
-        data_from_dir.append({
+        curve_dataset.append({
             METADATA: metadata,
             DATA: columnar_data
         })
 
-    return data_from_dir
+    return curve_dataset
 
 
 def dump_data(save_path: Path, data: list[dict]):
@@ -222,15 +204,15 @@ def dump_data(save_path: Path, data: list[dict]):
 
 def main():
 
-    if not raw_dataset_path.exists():
+    if not dataset_dir.exists():
         # Using SystemExit is a clean way to quit with an error message
-        raise SystemExit(f"Error: Directory not found at {raw_dataset_path}")
+        raise SystemExit(f"Error: Directory not found at {dataset_dir}")
     
-    if not raw_dataset_path.is_dir():
-        raise SystemExit(f"Error: {raw_dataset_path} exists but is not a directory.")
+    if not dataset_dir.is_dir():
+        raise SystemExit(f"Error: {dataset_dir} exists but is not a directory.")
     
-    data = extract_from_dir(raw_dataset_path)
-    dump_data(save_path, data)
+    data = extract_from_dir(dataset_dir)
+    dump_data(pickle_output_path, data)
 
 
 if __name__ == "__main__":
