@@ -4,11 +4,19 @@ from scipy import stats
 import pickle
 
 
+# AT THIS POINT IN TIME:
+# The script needs to act on an already existing Pickle file
+# I am testing every unit (extracting, elaborating...) singularly
 raw_dataset_path = Path(__file__).parent / 'data' / 'UH70-FS'
 load_path = raw_dataset_path / 'iv_curves_UH70FS.pkl'
+
+# The script simply creates a new pickle file (no overwriting)
 save_path = raw_dataset_path / 'elaborated_UH70FS.pkl'
 
 
+# LOW LEVEL: I am linearly fitting the entire data
+# later: fit only forward/reverse sweep
+# later: fit bias regions
 def calc_resistance(voltages, currents):
     
     slope, intercept, r_value, _, _ = stats.linregress(voltages, currents)
@@ -20,6 +28,8 @@ def calc_resistance(voltages, currents):
     }
 
 
+# Using numpy for simplicity, in the future the data might
+# be directly be stored in numpy or even dataframes (pandas)
 def compute_elaborations(dataset):
     V = np.array(dataset['curves']['Voltage'])
     I = np.array(dataset['curves']['Current'])
@@ -29,7 +39,8 @@ def compute_elaborations(dataset):
         # add more later
     }
 
-
+# The ** operator is cictionary unpacking.
+# Takes all key-value pairs inside and places them
 def add_elaborations(dataset):
     return {
         **dataset,
