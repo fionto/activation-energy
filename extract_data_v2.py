@@ -80,7 +80,7 @@ def parse_filename(filename: str) -> Metadata:
 
     where the Van der Pauw configuration suffix (AB or BA) is optional.
 
-    Extracts metadata from the filename and returns a dictionary containing:
+    Extracts metadata from the filename and returns a Metadata object containing:
         - sample name
         - timestamp (as a datetime object)
         - pressure (in Torr)
@@ -124,7 +124,7 @@ def parse_filename(filename: str) -> Metadata:
 
 def parse_row(row_str: str) -> Point:
     """
-    Parse a single CSV row string into a dataclass instance containing a single point.
+    Parse a single CSV row string into a Point dataclass instance.
 
     Args:
         row_str: A comma-separated string with at least 3 numeric fields
@@ -152,23 +152,22 @@ def parse_row(row_str: str) -> Point:
 
 def extract_curve_points(measurement_file: Path) -> list[Point]:
     """
-    Reads a measurement file and returns the points as a dictionary list.
+    Reads a measurement file and returns the points as a list of Point objects.
 
-    Each element has the keys 'voltage', 'current', and 'std_dev'.
     Responsibility for how these points are accumulated lies with the caller.
 
     Args:
         measurement_file: Path to the measurement file
 
     Returns:
-        List of Point dictionaries, empty if file is empty or only has header
+        List of Point objects, empty if file is empty or only has header
     """
 
     # First check: do not want to open files when size is 0 bytes. Common in LabVIEW.
     if measurement_file.stat().st_size == 0:
         return []
 
-    measurements: list[Point] = []
+    points: list[Point] = []
 
     with open(measurement_file, 'r', encoding='utf-8') as txt_data:
 
@@ -177,35 +176,35 @@ def extract_curve_points(measurement_file: Path) -> list[Point]:
             next(txt_data)  # skip header
         except StopIteration:
             # File is empty; return the empty list immediately
-            return measurements
+            return points
 
         for line_str in txt_data:
             line_str = line_str.strip()
             if not line_str:
                 continue
-            measurements.append(parse_row(line_str))
+            points.append(parse_row(line_str))
 
-    return measurements
+    return points
 
 
-def transpose_curve_data(Points: list[Point]) -> Measurements:
+def transpose_curve_data(points: list[Point]) -> Measurements:
     """
-    Transposes a list of row-Points into a dictionary of column-lists.
+    Transposes a list of Point objects into a Measurements dataclass.
 
     Args:
-        points: 
+        points: List of Point objects to transpose.
 
     Returns:
-        
+        Measurements: A dataclass containing lists of voltages, currents, and std_devs.
     """
     
     columnar_data = Measurements(
-        voltages = [],
-        currents = [],
-        std_devs = [],
+        voltages=[],
+        currents=[],
+        std_devs=[],
     )
 
-    for p in Points:
+    for p in points:
         columnar_data.voltages.append(p.voltage)
         columnar_data.currents.append(p.current)
         columnar_data.std_devs.append(p.std_dev)
@@ -217,7 +216,7 @@ def extract_from_dir(directory_path: Path) -> list[Dataset]:
     """
     Iterates over the .txt files in the directory and assembles the list of curves.
 
-    Each element is a dataclass subdivided in 'Metadata' and 'Measurements'.
+    Each element is a Dataset object subdivided into 'Metadata' and 'Measurements'.
 
     Args:
         directory_path: Path to directory containing measurement .txt files
@@ -236,12 +235,12 @@ def extract_from_dir(directory_path: Path) -> list[Dataset]:
         extracted_metadata = parse_filename(file.name)
         raw_points = extract_curve_points(file)
 
-        # organize list of dicts into a dictionary of column-lists
+        # organize list of Points into a Measurements dataclass
         columnar_data = transpose_curve_data(raw_points)
 
         # assemble final object, might want to change it to pandas or numpy later
         
-        curve_dataset.append(Dataset(metadata=extracted_metadata,measurements=columnar_data))
+        curve_dataset.append(Dataset(metadata=extracted_metadata, measurements=columnar_data))
         
     return curve_dataset
 
