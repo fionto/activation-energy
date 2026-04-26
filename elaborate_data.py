@@ -14,7 +14,7 @@ KEY_PRESSURE = "pressure_torr"
 KEY_TEMPERATURE = "temperature_k"
 KEY_GEOMETRY = 'alignment'
 # DATA: Contains the arrays of measured values
-DATA = "curves" # container name, could be more than 1 curve if Van Der Pauw
+DATA = "curves" # container name
 KEY_VOLTAGE = "Voltage"
 KEY_CURRENT = "Current"
 KEY_STD = "std_dev"
