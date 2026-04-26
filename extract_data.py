@@ -53,7 +53,7 @@ def check_alignment(alignment_str: str | None) -> str | None:
     Validates and normalizes Van der Pauw alignment configuration.
 
     Args:
-        alignment_str: Raw alignment string ('AB', 'BA', or None)
+        alignment_str: Raw alignment string from filename ('AB', 'BA', or None)
 
     Returns:
         Normalized alignment string ('horizontal', 'vertical', or None)
