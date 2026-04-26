@@ -1,40 +1,40 @@
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass
+from typing import TypedDict
 import pickle
 
 CELSIUS_TO_KELVIN = 273.15
 
+# TypedDict definitions
 # METADATA: Information about the environment (Sample ID, Timestamp, P, T)
 # contains geometric information on how the measurement was spatially performed
 # (Van Der Pauw alignment)
-
-@dataclass
-class Metadata:
+class Metadata(TypedDict):
     sample: str
     timestamp: datetime
     pressure_torr: float
     temperature_k: float
     alignment: str | None
 
-@dataclass
-class Point:
+
+# SINGLE POINT: how a single row from .txt file is originally stored
+class Point(TypedDict):
     voltage: float
     current: float
     std_dev: float
 
+
 # DATA: Contains the arrays of measured values
-@dataclass
-class Measurements:
+class Curves(TypedDict):
     voltages: list[float]
     currents: list[float]
     std_devs: list[float]
 
+
 # COMPLETE DATASET: With metadata and actual measured data
-@dataclass
-class Dataset:
-    metadata: Metadata
-    measurements: Measurements
+class Dataset(TypedDict):
+    Metadata: Metadata
+    Curves: Curves
 
 
 def _safe_float(value_str: str) -> float:
@@ -80,7 +80,7 @@ def parse_filename(filename: str) -> Metadata:
 
     where the Van der Pauw configuration suffix (AB or BA) is optional.
 
-    Extracts metadata from the filename and returns a Metadata object containing:
+    Extracts metadata from the filename and returns a dictionary containing:
         - sample name
         - timestamp (as a datetime object)
         - pressure (in Torr)
@@ -91,7 +91,7 @@ def parse_filename(filename: str) -> Metadata:
         filename: The measurement filename to parse
 
     Returns:
-        Metadata: A dataclass instance containing the parsed fields.
+        Metadata dictionary
 
     Raises:
         ValueError: if filename format is invalid
@@ -113,24 +113,24 @@ def parse_filename(filename: str) -> Metadata:
     temperature_k = _safe_float(temp_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN
     alignment = check_alignment(alignment_raw)
 
-    return Metadata(
-        sample=sample_str,
-        timestamp=timestamp,
-        pressure_torr=pressure_torr,
-        temperature_k=temperature_k,
-        alignment=alignment
-    )
+    return {
+        'sample': sample_str,
+        'timestamp': timestamp,
+        'pressure_torr': pressure_torr,
+        'temperature_k': temperature_k,
+        'alignment': alignment,
+    }
 
 
 def parse_row(row_str: str) -> Point:
     """
-    Parse a single CSV row string into a Point dataclass instance.
+    Parse a single CSV row string into a dictionary of numeric values.
 
     Args:
         row_str: A comma-separated string with at least 3 numeric fields
 
     Returns:
-        Point: A dataclass instance containing the parsed fields.
+        Point dictionary with voltage, current, and std_dev
 
     Raises:
         ValueError: if the row has fewer than 3 fields
@@ -143,31 +143,32 @@ def parse_row(row_str: str) -> Point:
 
     voltage_str, current_str, std_dev_str = csv_fields[:3]
 
-    return Point(
-        voltage=_safe_float(voltage_str),
-        current=_safe_float(current_str),
-        std_dev=_safe_float(std_dev_str)
-    )
+    return {
+        'voltage': _safe_float(voltage_str),
+        'current': _safe_float(current_str),
+        'std_dev': _safe_float(std_dev_str),
+    }
 
 
 def extract_curve_points(measurement_file: Path) -> list[Point]:
     """
-    Reads a measurement file and returns the points as a list of Point objects.
+    Reads a measurement file and returns the points as a dictionary list.
 
+    Each element has the keys 'voltage', 'current', and 'std_dev'.
     Responsibility for how these points are accumulated lies with the caller.
 
     Args:
         measurement_file: Path to the measurement file
 
     Returns:
-        List of Point objects, empty if file is empty or only has header
+        List of Point dictionaries, empty if file is empty or only has header
     """
 
     # First check: do not want to open files when size is 0 bytes. Common in LabVIEW.
     if measurement_file.stat().st_size == 0:
         return []
 
-    points: list[Point] = []
+    measurements: list[Point] = []
 
     with open(measurement_file, 'r', encoding='utf-8') as txt_data:
 
@@ -176,38 +177,42 @@ def extract_curve_points(measurement_file: Path) -> list[Point]:
             next(txt_data)  # skip header
         except StopIteration:
             # File is empty; return the empty list immediately
-            return points
+            return measurements
 
         for line_str in txt_data:
             line_str = line_str.strip()
             if not line_str:
                 continue
-            points.append(parse_row(line_str))
+            measurements.append(parse_row(line_str))
 
-    return points
+    return measurements
 
 
-def transpose_curve_data(points: list[Point]) -> Measurements:
+def transpose_curve_data(points: list[Point]) -> Curves:
     """
-    Transposes a list of Point objects into a Measurements dataclass.
+    Transposes a list of row-dictionaries into a dictionary of column-lists.
+
+    Example:
+        [{'voltage': 1, 'current': 2}, {'voltage': 3, 'current': 4}]
+        ->
+        {'voltages': [1, 3], 'currents': [2, 4]}
 
     Args:
-        points: List of Point objects to transpose.
+        points: List of Point dictionaries
 
     Returns:
-        Measurements: A dataclass containing lists of voltages, currents, and std_devs.
+        Curves dictionary with columnar data
     """
-    
-    columnar_data = Measurements(
-        voltages=[],
-        currents=[],
-        std_devs=[],
-    )
+    columnar_data: Curves = {
+        'voltages': [],
+        'currents': [],
+        'std_devs': [],
+    }
 
-    for p in points:
-        columnar_data.voltages.append(p.voltage)
-        columnar_data.currents.append(p.current)
-        columnar_data.std_devs.append(p.std_dev)
+    for point in points:
+        columnar_data['voltages'].append(point['voltage'])
+        columnar_data['currents'].append(point['current'])
+        columnar_data['std_devs'].append(point['std_dev'])
 
     return columnar_data
 
@@ -216,13 +221,13 @@ def extract_from_dir(directory_path: Path) -> list[Dataset]:
     """
     Iterates over the .txt files in the directory and assembles the list of curves.
 
-    Each element is a Dataset object subdivided into 'Metadata' and 'Measurements'.
+    Each element is a dictionary with the keys 'Metadata' and 'Curves'.
 
     Args:
         directory_path: Path to directory containing measurement .txt files
 
     Returns:
-        List of Dataset objects
+        List of Dataset dictionaries
     """
     curve_dataset: list[Dataset] = []
 
@@ -232,16 +237,18 @@ def extract_from_dir(directory_path: Path) -> list[Dataset]:
 
         # using helper functions to extract metadata from filenames and
         # raw data from the content of .txt files
-        extracted_metadata = parse_filename(file.name)
+        metadata = parse_filename(file.name)
         raw_points = extract_curve_points(file)
 
-        # organize list of Points into a Measurements dataclass
+        # organize list of dicts into a dictionary of column-lists
         columnar_data = transpose_curve_data(raw_points)
 
         # assemble final object, might want to change it to pandas or numpy later
-        
-        curve_dataset.append(Dataset(metadata=extracted_metadata, measurements=columnar_data))
-        
+        curve_dataset.append({
+            'Metadata': metadata,
+            'Curves': columnar_data,
+        })
+
     return curve_dataset
 
 
