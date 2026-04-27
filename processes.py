@@ -1,6 +1,6 @@
 from scipy import stats
 import pandas as pd
-from models import Measurement, LinearFit
+from models import LinearFit
 
 def linear_fit(array_x: pd.Series, array_y: pd.Series) -> LinearFit:
 

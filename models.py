@@ -61,6 +61,16 @@ class LinearFit:
     intercept: float
     r_squared: float
 
+    @property
+    def resistance(self) -> float:
+        """Returns resistance in Ohms. Assumes fit was I(V)."""
+        return 1 / self.slope if self.slope != 0 else float('inf')
+
+    @property
+    def conductance(self) -> float:
+        """Returns conductance in Siemens."""
+        return self.slope
+
 @dataclass
 class Elaborations:
     linear_fit: LinearFit
@@ -93,6 +103,6 @@ class Dataset:
             f"Configuration: {header}\n"
             f"Measurement:   {num_points} points collected over [{v_min:.2e}V to {v_max:.2e}V]\n"
             f"Linear Fit:    Slope: {fit.slope:.4e} | Intercept: {fit.intercept:.4e}\n"
-            f"Fit Quality:   R² = {fit.r_squared:.6f}\n"
+            f"Resistance:   {fit.resistance:.2e} Ω (R²: {fit.r_squared:.4f})\n"
             f"----------------------"
         )
