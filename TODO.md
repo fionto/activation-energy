@@ -30,8 +30,8 @@ A rough development roadmap from raw file handling to final plotting.
 
 * [x] Extract temperature from filename or file content
 * [x] Standardize temperature units (e.g., Kelvin)
-* [x] Associate each dataset with its temperature
-* [x] Sort datasets by temperature
+* [ ] Associate each dataset with its temperature
+* [ ] Sort datasets by temperature
 
 ---
 
