@@ -1,31 +1,34 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from models import Measurement, Metadata
+from models import Measurement, Metadata, Elaborations, Dataset
 from constants import ColumnNames, CELSIUS_TO_KELVIN
 import utils
+import processes
 
+# CSV DATA MANIPULATION
+# everything is carried on a single CSV data containing one single V(I) measurement
 
 def load_measurement_csv(filepath: Path) -> Measurement:
-    """Load measurement data from a CSV file and convert to Measurement object.
+    """Load measurement data from a .txt file (formatted in CSV) and convert to Measurement object.
     
-    Reads a raw CSV file, standardizes column names, and validates that all
+    Reads a raw .txt file, standardizes column names, and validates that all
     required measurement columns are present before creating a Measurement object.
     
     Args:
-        filepath: Path to the CSV file containing measurement data.
+        filepath: Path to the .txt file containing measurement data.
     
     Returns:
         A Measurement object containing the validated measurement data.
     
     Raises:
         FileNotFoundError: If the specified file does not exist.
-        ValueError: If required columns are missing from the CSV file.
-        pd.errors.ParserError: If the CSV file is malformed or cannot be parsed.
+        ValueError: If required columns are missing from the .txt file.
+        pd.errors.ParserError: If the .txt file is malformed or cannot be parsed.
     
     """
     
-    # Read the raw CSV file
+    # Read the raw .txt file (formatted in CSV)
     raw_df = pd.read_csv(filepath)
     
     # Define mapping from file column names to standardized internal names
@@ -100,5 +103,26 @@ def load_metadata_csv(filename: str) -> Metadata:
         timestamp=timestamp,
         pressure_torr=pressure_torr,
         temperature_k=temperature_k,
-        alignment=alignment
+        alignment=alignment,
+    )
+
+
+def load_dataset_csv(filepath: Path) -> Dataset:
+    # The acquisition pipeline via LabVIEW store 
+    # METADATA in the .txt filename
+    csv_metadata = load_metadata_csv(filepath.name)
+
+    # The extraction of the .txt file content is presented in a dataclass object
+    # to perform pandas elaborations it is necessary to extract the DataFrame (df)
+    csv_measurement = load_measurement_csv(filepath)
+    df = Measurement.to_dataframe(csv_measurement)
+
+    # Processing data (global linear fit for now)
+    csv_linear_fit = processes.linear_fit(df[ColumnNames.VOLTAGE], df[ColumnNames.CURRENT])
+    csv_elaborations = Elaborations(linear_fit=csv_linear_fit)
+
+    return Dataset(
+        metadata=csv_metadata,
+        measurement=csv_measurement,
+        elaborations=csv_elaborations,
     )

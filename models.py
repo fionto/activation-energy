@@ -71,3 +71,28 @@ class Dataset:
     metadata: Metadata
     measurement: Measurement
     elaborations: Elaborations
+
+    def report(self) -> str:
+        """
+        Generates a concise, human-readable summary of the entire dataset, 
+        focusing on environmental conditions and the quality of the linear fit.
+        """
+        # Metadata header
+        header = self.metadata.summary()
+        
+        # Data stats
+        num_points = len(self.measurement.data)
+        v_min = self.measurement.voltage.min()
+        v_max = self.measurement.voltage.max()
+        
+        # Fit results
+        fit = self.elaborations.linear_fit
+        
+        return (
+            f"--- DATASET REPORT ---\n"
+            f"Configuration: {header}\n"
+            f"Measurement:   {num_points} points collected over [{v_min:.2e}V to {v_max:.2e}V]\n"
+            f"Linear Fit:    Slope: {fit.slope:.4e} | Intercept: {fit.intercept:.4e}\n"
+            f"Fit Quality:   R² = {fit.r_squared:.6f}\n"
+            f"----------------------"
+        )
