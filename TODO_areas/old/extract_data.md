@@ -12,7 +12,7 @@
 - [x] **Decompose `extract_from_dir`:** Extract the nested loop responsible for transposing rows into columns into a standalone helper function. 
 
 ## 3. Data Representation & Style
-- [ ] **Refactor to `dataclasses`:** Replace the nested dictionary structure with a `Measurement` dataclass. This will clarify the "contract" of what a curve contains and improve readability.
-- [ ] **Integrate `csv` module:** Replace manual `.split(',')` and `.strip()` logic in `parse_row` with `csv.DictReader` or `csv.reader` for more resilient parsing.
+- [x] **Refactor to `dataclasses`:** Replace the nested dictionary structure with a `Measurement` dataclass. This will clarify the "contract" of what a curve contains and improve readability.
+- [x] **Integrate `csv` module:** Replace manual `.split(',')` and `.strip()` logic in `parse_row` with `csv.DictReader` or `csv.reader` for more resilient parsing.
 - [x] **Standardize type hints:** Use `typing.TypedDict` or specific classes instead of the generic `list[dict]`. What exactly is inside that dictionary? Make it explicit.
 - [x] **Refactor docstrings:** Rewrite docstrings to focus on the "what" and "why" of the interface, moving implementation details (the "how") into standard comments.

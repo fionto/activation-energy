@@ -9,13 +9,13 @@
 
 ## 🔧 Robustezza & Parsing
 - [x] Aggiungere controllo sul numero di campi in `parse_row` (evitare `IndexError` su righe troncate o con delimiter extra)
-- [ ] Valutare sostituzione di `.split(',')` con modulo `csv` (gestisce automaticamente spazi, virgolette, righe malformate)
+- [x] Valutare sostituzione di `.split(',')` con modulo `csv` (gestisce automaticamente spazi, virgolette, righe malformate)
 - [x] Gestire `StopIteration` in `next(txt_data)` se il file è vuoto o privo di header
 
 ## 🏗️ Architettura & Manutenibilità
 - [ ] Aggiungere docstring complete a tutte le funzioni (args, return, edge cases)
 - [x] Uniformare i type hints (es. `dict[str, list[float]]` invece di `dict`)
-- [ ] Valutare struttura dati dedicata (`dataclass` o `NamedTuple`) per rappresentare un singolo punto misura
+- [x] Valutare struttura dati dedicata (`dataclass` o `NamedTuple`) per rappresentare un singolo punto misura
 - [ ] Sostituire `print()` con `logging` per tracciabilità e disaccoppiamento output/console
 
 ## 🧪 Validazione & Testing
