@@ -1,6 +1,4 @@
 from pathlib import Path
-from models import DatasetCollection
-import loaders
 
 # Building the Path object starting from where the script resides:
 # the script is located at the project folder root
@@ -22,9 +20,4 @@ csv_datasets = []
 # filename starts with date, so it should be ordered chronologically
 # the folder might contain other files, in the future should filter better
 for file in sorted(raw_dataset_dir.glob("*.txt")):
-    
-    csv_dataset = loaders.load_dataset_csv(file)
-    csv_datasets.append(csv_dataset)
-    
-datasets = DatasetCollection(datasets=csv_datasets)
-print(datasets.summary_df)
+    print(file.name)

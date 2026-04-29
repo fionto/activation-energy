@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import pandas as pd
-from constants import ColumnNames
+from constants import ColumnNames, MetadataFieldNames, LinearFitNames
 
 # METADATA: Information about the environment (Sample ID, Timestamp, P, T)
 # Contains geometric information on how the measurement was spatially performed
@@ -106,3 +106,38 @@ class Dataset:
             f"Resistance:   {fit.resistance:.2e} Ω (R²: {fit.r_squared:.4f})\n"
             f"----------------------"
         )
+    
+@dataclass
+class DatasetCollection:
+    # datasets has a default value (empty list)
+    datasets: list[Dataset] = field(default_factory=list)
+
+    @property
+    def summary_df(self) -> pd.DataFrame:
+        """Flattens the most important info into a single DataFrame for global analysis."""
+    
+        if not self.datasets:
+            return pd.DataFrame()
+        
+        # Pandas DataFrame can be created by passing lists of dictionaries as input data. 
+        # By default, dictionary keys will be taken as columns. 
+
+        rows = []
+
+        for d in self.datasets:
+            recap = {
+                MetadataFieldNames.SAMPLE : d.metadata.sample,
+                MetadataFieldNames.TEMPERATURE_K : d.metadata.temperature_k,
+                MetadataFieldNames.ALIGNMENT : d.metadata.alignment,
+                LinearFitNames.SLOPE : d.elaborations.linear_fit.slope,
+                LinearFitNames.R_SQUARED : d.elaborations.linear_fit.r_squared,
+            }
+            rows.append(recap)
+        
+        return pd.DataFrame(rows)
+    
+    def __iter__(self):
+        return iter(self.datasets)
+
+    def __len__(self):
+        return len(self.datasets)
