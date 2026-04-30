@@ -48,6 +48,8 @@ def main():
 
     # elaborating the data
     vdp_results = collection.vdp_df
+    
+    print(vdp_results)
 
     vdp_results.plot(x="temp_k", y="sheet_resistance_ohm")
     plt.show()
