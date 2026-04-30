@@ -3,44 +3,48 @@ from models import DatasetCollection, Dataset, Measurement, Elaborations
 from constants import ColumnNames
 import loaders
 import processes
+import utils
 
 def main():
+    # CSV DATA MANIPULATION
+    # everything is carried on a single .txt file (CSV data) containing one single V(I) measurement
+    # the directory contains multiple measurements (.txt files)
     raw_dataset_dir = Path(__file__).parent / 'data' / 'UH70-FS'
+    validated_dir = utils.validate_dataset_directory(raw_dataset_dir)
 
-    if not raw_dataset_dir.exists():
-        # Using SystemExit is a clean way to quit with an error message
-        raise SystemExit(f"Error: Directory not found at {raw_dataset_dir}")
-
-    if not raw_dataset_dir.is_dir():
-        raise SystemExit(f"Error: {raw_dataset_dir} exists but is not a directory.")
-
-    csv_datasets = []
+    datasets_list = []
 
     # filename starts with date, so it should be ordered chronologically
     # the folder might contain other files, in the future should filter better
-    for file in sorted(raw_dataset_dir.glob("*.txt")):
+    for measurement_file in sorted(validated_dir.glob("*.txt")):
         
         # The acquisition pipeline via LabVIEW store 
         # METADATA in the .txt filename
-        csv_metadata = loaders.load_metadata_csv(file.name)
+        metadata = loaders.load_metadata_csv(measurement_file.name)
 
         # The extraction of the .txt file content is presented in a dataclass object
         # to perform pandas elaborations it is necessary to extract the DataFrame (df)
-        csv_measurement = loaders.load_measurement_csv(file)
-        df = Measurement.to_dataframe(csv_measurement)        
+        measurement = loaders.load_measurement_csv(measurement_file)
+        voltage_current_df = Measurement.to_dataframe(measurement)        
 
         # Processing data (global linear fit for now)
-        csv_linear_fit = processes.linear_fit(df[ColumnNames.VOLTAGE], df[ColumnNames.CURRENT])
-        csv_elaborations = Elaborations(linear_fit=csv_linear_fit)
+        linear_fit_result = processes.linear_fit(
+            voltage_current_df[ColumnNames.VOLTAGE], 
+            voltage_current_df[ColumnNames.CURRENT]
+        )
+        elaborations = Elaborations(linear_fit=linear_fit_result)
 
         # Container for a single .txt file
-        csv_dataset = Dataset(metadata=csv_metadata, measurement=csv_measurement, elaborations=csv_elaborations)
+        dataset = Dataset(
+            metadata=metadata, 
+            measurement=measurement, elaborations=elaborations
+        )
 
-        csv_datasets.append(csv_dataset)
+        datasets_list.append(dataset)
 
     # Container for all .txt files in the directory    
-    datasets = DatasetCollection(datasets=csv_datasets)
-    print(datasets.summary_df)
+    collection = DatasetCollection(datasets=datasets_list)
+    print(collection.summary_df)
 
 if __name__ == "__main__":
     main()

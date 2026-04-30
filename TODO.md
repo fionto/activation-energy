@@ -10,7 +10,7 @@ A rough development roadmap from raw file handling to final plotting.
 * [x] Loop over files in directory
 * [x] Filter `.txt` files only
 * [x] Open files using `with open(...)`
-* [ ] Read file contents safely
+* [x] Read file contents safely
 * [x] Handle empty or malformed files
 
 ---

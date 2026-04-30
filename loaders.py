@@ -6,9 +6,6 @@ from constants import ColumnNames, CELSIUS_TO_KELVIN
 import utils
 import processes
 
-# CSV DATA MANIPULATION
-# everything is carried on a single CSV data containing one single V(I) measurement
-
 def load_measurement_csv(filepath: Path, delimiter=',') -> Measurement:
     """Load measurement data from a .txt file (formatted in CSV) and convert to 
     Measurement object. With flexible delimiter support.
@@ -40,20 +37,17 @@ def load_measurement_csv(filepath: Path, delimiter=',') -> Measurement:
         'Standard Deviation (A)': ColumnNames.STD_DEV,
         'Measurement delay (s)': ColumnNames.DELAY,
     }
-    
-    # Create a copy of the raw DataFrame to avoid modifying the original
-    cleaned_df = raw_df.copy()
-    
+ 
     # Remove leading/trailing whitespace from all column names
     # (.str is a pandas accessor that applies string methods to each column name)
-    cleaned_df.columns = cleaned_df.columns.str.strip()
+    raw_df.columns = raw_df.columns.str.strip()
     
     # Rename columns from their original names (as they appear in the file)
     # to our standardized internal column names using the mapping dictionary
-    cleaned_df = cleaned_df.rename(columns=column_mapping)
+    raw_df = raw_df.rename(columns=column_mapping)
     
     # Validate and return as Measurement object
-    return Measurement.from_dataframe(cleaned_df)
+    return Measurement.from_dataframe(raw_df)
 
 
 def load_metadata_csv(filename: str) -> Metadata:
