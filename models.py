@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 import pandas as pd
+from scipy.optimize import fsolve
+import numpy as np
 from constants import ColumnNames, MetadataFieldNames, LinearFitNames
 
 # METADATA: Information about the environment (Sample ID, Timestamp, P, T)
@@ -105,8 +107,14 @@ class Dataset:
             f"Linear Fit:    Slope: {fit.slope:.4e} | Intercept: {fit.intercept:.4e}\n"
             f"Resistance:   {fit.resistance:.2e} Ω (R²: {fit.r_squared:.4f})\n"
             f"----------------------"
-        )
-    
+        )  
+ 
+@dataclass
+class VdpResult:
+    temp_k: float
+    sheet_resistance_ohm: float
+    is_geometric_average: bool  # True if we only had one configuration
+
 @dataclass
 class DatasetCollection:
     # datasets has a default value (empty list)
@@ -141,3 +149,53 @@ class DatasetCollection:
 
     def __len__(self):
         return len(self.datasets)
+    
+    def get_vdp_results(self, t_tolerance: int = 0) -> list[VdpResult]:
+        """
+        Groups sweeps by T, averages configurations, and solves VDP.
+        t_tolerance: number of decimals to round T for grouping.
+        """
+        # 1. Group by T
+        groups = {}
+        for ds in self.datasets:
+            t_key = round(ds.metadata.temperature_k, t_tolerance)
+            groups.setdefault(t_key, []).append(ds)
+
+        results = []
+        for t_val, sweeps in groups.items():
+            # 2. Separate by alignment
+            horiz = [s.elaborations.linear_fit.resistance for s in sweeps if s.metadata.alignment == 'horizontal']
+            vert = [s.elaborations.linear_fit.resistance for s in sweeps if s.metadata.alignment == 'vertical']
+
+            r_a = np.mean(horiz) if horiz else None
+            r_b = np.mean(vert) if vert else None
+
+            # 3. Decision Logic
+            if r_a and r_b:
+                # Solve VDP equation: exp(-pi*Ra/Rs) + exp(-pi*Rb/Rs) = 1
+                rs_guess = (r_a + r_b) * (np.pi / (2 * np.log(2))) # Analytic approximation as guess
+                func = lambda rs: np.exp(-np.pi * r_a / rs) + np.exp(-np.pi * r_b / rs) - 1
+                rs_solution = fsolve(func, x0=rs_guess)[0]
+                results.append(VdpResult(t_val, rs_solution, False))
+            
+            elif r_a or r_b:
+                # Fallback to single configuration
+                val = r_a if r_a else r_b
+                results.append(VdpResult(t_val, val, True))
+
+        return sorted(results, key=lambda x: x.temp_k)
+    
+    @property
+    def vdp_df(self) -> pd.DataFrame:
+        """
+        Converts VDP results directly to a DataFrame for plotting and analysis.
+        """
+        results = self.get_vdp_results()
+        if not results:
+            return pd.DataFrame()
+
+        # Pandas can ingest a list of dataclasses directly
+        df = pd.DataFrame([r.__dict__ for r in results])
+        
+        # Sort by temperature to ensure clean plotting
+        return df.sort_values("temp_k").reset_index(drop=True)

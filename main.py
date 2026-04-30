@@ -1,4 +1,5 @@
 from pathlib import Path
+import matplotlib.pyplot as plt
 from models import DatasetCollection, Dataset, Measurement, Elaborations
 from constants import ColumnNames
 import loaders
@@ -44,7 +45,12 @@ def main():
 
     # Container for all .txt files in the directory    
     collection = DatasetCollection(datasets=datasets_list)
-    print(collection.summary_df)
+
+    # elaborating the data
+    vdp_results = collection.vdp_df
+
+    vdp_results.plot(x="temp_k", y="sheet_resistance_ohm")
+    plt.show()
 
 if __name__ == "__main__":
     main()
