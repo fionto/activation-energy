@@ -1,6 +1,4 @@
 from pathlib import Path
-from typing import Optional
-import sys
 
 def _safe_float(value_str: str) -> float:
     """
@@ -69,9 +67,7 @@ def validate_dataset_directory(
         >>> # Now safe to use validated_dir for file operations
     """
     
-    # =========================================================================
     # EXISTENCE CHECK
-    # =========================================================================
     if not directory_path.exists():
         error_msg = (
             f"Error: Directory not found at {directory_path}\n"
@@ -80,9 +76,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # =========================================================================
     # TYPE CHECK (is it actually a directory?)
-    # =========================================================================
     if not directory_path.is_dir():
         error_msg = (
             f"Error: Path exists but is not a directory: {directory_path}\n"
@@ -91,9 +85,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # =========================================================================
     # PERMISSIONS CHECK (can we read it?)
-    # =========================================================================
     if not directory_path.is_absolute():
         directory_path = directory_path.resolve()
     
@@ -115,9 +107,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # =========================================================================
     # CONTENT CHECK (does it contain the expected files?)
-    # =========================================================================
     matching_files = list(directory_path.glob(required_extension))
     
     if not matching_files:
@@ -137,9 +127,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # =========================================================================
     # FILE-LEVEL VALIDATION (are the files readable?)
-    # =========================================================================
     unreadable_files = []
     for file in matching_files:
         try:
@@ -165,9 +153,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # =========================================================================
     # SUCCESS: All validations passed
-    # =========================================================================
     if verbose:
         print(
             f"✓ Dataset directory validated successfully\n"

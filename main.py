@@ -8,7 +8,7 @@ import utils
 
 def main():
     # CSV DATA MANIPULATION
-    # everything is carried on a single .txt file (CSV data) containing one single V(I) measurement
+    # a single .txt file (CSV data) contains one  I(V) measurement
     # the directory contains multiple measurements (.txt files)
     raw_dataset_dir = Path(__file__).parent / 'data' / 'UH70-FS'
     validated_dir = utils.validate_dataset_directory(raw_dataset_dir)
@@ -23,7 +23,7 @@ def main():
         # METADATA in the .txt filename
         metadata = loaders.load_metadata_csv(measurement_file.name)
 
-        # The extraction of the .txt file content is presented in a dataclass object
+        # The .txt file content is extracted in a dataclass object (Measurement)
         # to perform pandas elaborations it is necessary to extract the DataFrame (df)
         measurement = loaders.load_measurement_csv(measurement_file)
         voltage_current_df = Measurement.to_dataframe(measurement)        
