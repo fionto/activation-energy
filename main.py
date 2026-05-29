@@ -10,8 +10,8 @@ def main():
     # CSV DATA MANIPULATION
     # a single .txt file (CSV data) contains one  I(V) measurement
     # the directory contains multiple measurements (.txt files)
-    raw_dataset_dir = Path(__file__).parent / 'data' / 'UH70-FS'
-    validated_dir = utils.validate_dataset_directory(raw_dataset_dir)
+    raw_datasets_dir = Path(__file__).parent / 'data' / 'UH70-FS'
+    validated_dir = utils.validate_dataset_directory(raw_datasets_dir)
 
     datasets_list = []
 
@@ -26,25 +26,47 @@ def main():
         # The .txt file content is extracted in a dataclass object (Measurement)
         # to perform pandas elaborations it is necessary to extract the DataFrame (df)
         measurement = loaders.load_measurement_csv(measurement_file)
-        voltage_current_df = Measurement.to_dataframe(measurement)        
+        voltage_current_df = Measurement.to_dataframe(measurement)
+        positive_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] > 0]
+        negative_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] < 0]        
 
-        # Processing data (global linear fit for now)
-        linear_fit_result = processes.linear_fit(
+        # Processing data
+        # Processing all the points in the curve
+        global_linear_fit_result = processes.linear_fit(
             voltage_current_df[ColumnNames.VOLTAGE], 
             voltage_current_df[ColumnNames.CURRENT]
         )
-        elaborations = Elaborations(linear_fit=linear_fit_result)
+
+        # Processing only the positive V points
+        positive_linear_fit_result = processes.linear_fit(
+            positive_VI_df[ColumnNames.VOLTAGE], 
+            positive_VI_df[ColumnNames.CURRENT]
+        )
+
+        # Processing only the negative V points
+        negative_linear_fit_result = processes.linear_fit(
+            negative_VI_df[ColumnNames.VOLTAGE], 
+            negative_VI_df[ColumnNames.CURRENT]
+        )                
+
+        elaborations = Elaborations(
+            global_linear_fit=global_linear_fit_result,
+            positive_linear_fit=positive_linear_fit_result,
+            negative_linear_fit=negative_linear_fit_result,
+            )
 
         # Container for a single .txt file
         dataset = Dataset(
             metadata=metadata, 
-            measurement=measurement, elaborations=elaborations
+            measurement=measurement, 
+            elaborations=elaborations
         )
 
         datasets_list.append(dataset)
 
     # Container for all .txt files in the directory    
     collection = DatasetCollection(datasets=datasets_list)
+    print(collection.summary_df)
 
     # elaborating the data
     vdp_results = collection.vdp_df

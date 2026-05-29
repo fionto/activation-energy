@@ -21,7 +21,7 @@ class Metadata:
         return (f"Sample {self.sample} | {self.temperature_k}K, {self.pressure_torr}Torr | "
                 f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# DATA: Contains the arrays of measured values
+# MEASUREMENT: Contains the arrays of measured values
 @dataclass
 class Measurement:
     data: pd.DataFrame  # Must contain: voltage_v, current_a, std_dev columns, delay_s
@@ -75,7 +75,9 @@ class LinearFit:
 
 @dataclass
 class Elaborations:
-    linear_fit: LinearFit
+    global_linear_fit: LinearFit
+    positive_linear_fit: LinearFit
+    negative_linear_fit: LinearFit
     # Room for: mobility, resistivity, carrier_concentration, etc.
 
 @dataclass
@@ -98,13 +100,17 @@ class Dataset:
         v_max = self.measurement.voltage.max()
         
         # Fit results
-        fit = self.elaborations.linear_fit
+        fit = self.elaborations.global_linear_fit
+        positive_fit = self.elaborations.positive_linear_fit
+        negative_fit =self.elaborations.negative_linear_fit
         
         return (
             f"--- DATASET REPORT ---\n"
             f"Configuration: {header}\n"
             f"Measurement:   {num_points} points collected over [{v_min:.2e}V to {v_max:.2e}V]\n"
             f"Linear Fit:    Slope: {fit.slope:.4e} | Intercept: {fit.intercept:.4e}\n"
+            f"Positive Fit:    Slope: {positive_fit.slope:.4e}\n"
+            f"Negative Fit:    Slope: {negative_fit.slope:.4e}\n"
             f"Resistance:   {fit.resistance:.2e} Ω (R²: {fit.r_squared:.4f})\n"
             f"----------------------"
         )  
@@ -137,8 +143,10 @@ class DatasetCollection:
                 MetadataFieldNames.SAMPLE : d.metadata.sample,
                 MetadataFieldNames.TEMPERATURE_K : d.metadata.temperature_k,
                 MetadataFieldNames.ALIGNMENT : d.metadata.alignment,
-                LinearFitNames.SLOPE : d.elaborations.linear_fit.slope,
-                LinearFitNames.R_SQUARED : d.elaborations.linear_fit.r_squared,
+                "global_slope" : d.elaborations.global_linear_fit.slope,
+                "global_r_squared" : d.elaborations.global_linear_fit.r_squared,
+                "positive_slope" : d.elaborations.positive_linear_fit.slope,
+                "negative_slope" : d.elaborations.negative_linear_fit.slope,
             }
             rows.append(recap)
         
@@ -164,8 +172,8 @@ class DatasetCollection:
         results = []
         for t_val, sweeps in groups.items():
             # 2. Separate by alignment
-            horiz = [s.elaborations.linear_fit.resistance for s in sweeps if s.metadata.alignment == 'horizontal']
-            vert = [s.elaborations.linear_fit.resistance for s in sweeps if s.metadata.alignment == 'vertical']
+            horiz = [s.elaborations.global_linear_fit.resistance for s in sweeps if s.metadata.alignment == 'horizontal']
+            vert = [s.elaborations.global_linear_fit.resistance for s in sweeps if s.metadata.alignment == 'vertical']
 
             r_a = np.mean(horiz) if horiz else None
             r_b = np.mean(vert) if vert else None
@@ -174,14 +182,14 @@ class DatasetCollection:
             if r_a and r_b:
                 # Solve VDP equation: exp(-pi*Ra/Rs) + exp(-pi*Rb/Rs) = 1
                 rs_guess = (r_a + r_b) * (np.pi / (2 * np.log(2))) # Analytic approximation as guess
-                func = lambda rs: np.exp(-np.pi * r_a / rs) + np.exp(-np.pi * r_b / rs) - 1
+                func = lambda rs: np.exp(-np.pi * r_a / rs) + np.exp(-np.pi * r_b / rs) - 1 # pyright: ignore[reportOperatorIssue]
                 rs_solution = fsolve(func, x0=rs_guess)[0]
                 results.append(VdpResult(t_val, rs_solution, False))
             
             elif r_a or r_b:
                 # Fallback to single configuration
                 val = r_a if r_a else r_b
-                results.append(VdpResult(t_val, val, True))
+                results.append(VdpResult(t_val, val, True)) # pyright: ignore[reportArgumentType]
 
         return sorted(results, key=lambda x: x.temp_k)
     
