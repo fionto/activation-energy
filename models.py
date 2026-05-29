@@ -143,7 +143,8 @@ class DatasetCollection:
                 MetadataFieldNames.SAMPLE : d.metadata.sample,
                 MetadataFieldNames.TEMPERATURE_K : d.metadata.temperature_k,
                 MetadataFieldNames.ALIGNMENT : d.metadata.alignment,
-                "global_slope" : d.elaborations.global_linear_fit.slope,
+                #TODO: Fix constants
+                "global_slope" : d.elaborations.global_linear_fit.slope,            
                 "global_r_squared" : d.elaborations.global_linear_fit.r_squared,
                 "positive_slope" : d.elaborations.positive_linear_fit.slope,
                 "negative_slope" : d.elaborations.negative_linear_fit.slope,

@@ -1,10 +1,6 @@
 from pathlib import Path
 import matplotlib.pyplot as plt
-from models import DatasetCollection, Dataset, Measurement, Elaborations
-from constants import ColumnNames
 import loaders
-import processes
-import utils
 
 def main():
     # CSV DATA MANIPULATION
@@ -13,7 +9,7 @@ def main():
     raw_datasets_dir = Path(__file__).parent / 'data' / 'UH70-FS'
 
     # Load all data
-    collection = loaders.load_all_datasets(raw_datasets_dir)
+    collection = loaders.load_all_datasets(raw_datasets_dir, verbose=False)
     
     # Display and analyze
     print(collection.summary_df)

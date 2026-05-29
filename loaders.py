@@ -3,10 +3,10 @@ from datetime import datetime
 from pathlib import Path
 from models import Metadata, Measurement, Elaborations, Dataset, DatasetCollection
 from constants import ColumnNames, CELSIUS_TO_KELVIN
-import utils
-import processes
+from utils import validate_dataset_directory, _safe_float, check_alignment
+from processes import linear_fit
 
-def load_measurement_csv(filepath: Path, delimiter=',') -> Measurement:
+def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
     """Load measurement data from a .txt file (formatted in CSV) and convert to 
     Measurement object. With flexible delimiter support.
     
@@ -90,9 +90,9 @@ def load_metadata_csv(filename: str) -> Metadata:
     alignment_raw = extra[0] if extra else None
 
     timestamp = datetime.strptime(date_str + time_str, '%Y%m%d%H%M%S')
-    pressure_torr = utils._safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
-    temperature_k = utils._safe_float(temp_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN
-    alignment = utils.check_alignment(alignment_raw)
+    pressure_torr = _safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
+    temperature_k = _safe_float(temp_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN
+    alignment = check_alignment(alignment_raw)
 
     return Metadata(
         sample=sample_str,
@@ -129,7 +129,10 @@ def load_and_process_dataset(measurement_file: Path) -> Dataset:
             - elaborations: Linear fit results for global, positive, and negative regions
     
     Raises:
-    
+        FileNotFoundError: If measurement_file does not exist.
+        ValueError: If filename format is invalid, CSV data is malformed, 
+            or required columns (VOLTAGE, CURRENT) are missing.
+        pd.errors.ParserError: If the .txt file cannot be parsed as CSV.
     """
 
     # The acquisition pipeline via LabVIEW 
@@ -144,15 +147,15 @@ def load_and_process_dataset(measurement_file: Path) -> Dataset:
 
     # Compute fits
     elaborations = Elaborations(
-        global_linear_fit=processes.linear_fit(
+        global_linear_fit=linear_fit(
             voltage_current_df[ColumnNames.VOLTAGE], 
             voltage_current_df[ColumnNames.CURRENT]
         ),
-        positive_linear_fit=processes.linear_fit(
+        positive_linear_fit=linear_fit(
             positive_VI_df[ColumnNames.VOLTAGE], 
             positive_VI_df[ColumnNames.CURRENT]
         ),
-        negative_linear_fit=processes.linear_fit(
+        negative_linear_fit=linear_fit(
             negative_VI_df[ColumnNames.VOLTAGE], 
             negative_VI_df[ColumnNames.CURRENT]
         )
@@ -160,7 +163,7 @@ def load_and_process_dataset(measurement_file: Path) -> Dataset:
 
     return Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
 
-def load_all_datasets(data_dir: Path) -> DatasetCollection:
+def load_all_datasets(data_dir: Path, verbose: bool = True) -> DatasetCollection:
     """Load and process all measurement files in a directory.
     
     Scans a directory for all .txt files containing I(V) measurements, processes
@@ -193,11 +196,14 @@ def load_all_datasets(data_dir: Path) -> DatasetCollection:
         chronological ordering. Any non-.txt files in the directory are ignored.
     
     """
-    validated_dir = utils.validate_dataset_directory(data_dir, required_extension="*.txt", verbose=True)
+    validated_dir = validate_dataset_directory(data_dir, required_extension="*.txt", verbose=verbose)
 
-    datasets_list = [
-        load_and_process_dataset(measurement_file)
-        for measurement_file in sorted(validated_dir.glob("*.txt"))
-    ]
+    txt_files = sorted(validated_dir.glob("*.txt"))
+    datasets_list = []
+    
+    for i, measurement_file in enumerate(txt_files, 1):
+        if verbose:
+            print(f"Processing {i}/{len(txt_files)}: {measurement_file.name}")
+        datasets_list.append(load_and_process_dataset(measurement_file))
     
     return DatasetCollection(datasets=datasets_list)
