@@ -72,7 +72,7 @@ def validate_dataset_directory(
         error_msg = (
             f"Error: Directory not found at {directory_path}\n"
             f"Expected path: {directory_path.resolve()}\n"
-            f"Please ensure the 'data/UH70-FS' directory exists."
+            f"Please ensure the directory exists."
         )
         raise SystemExit(error_msg)
     
@@ -85,10 +85,11 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # PERMISSIONS CHECK (can we read it?)
+    
     if not directory_path.is_absolute():
         directory_path = directory_path.resolve()
     
+    # PERMISSIONS CHECK (can we read it?)
     try:
         # Attempting to list directory contents tests read permission
         list(directory_path.iterdir())
@@ -127,32 +128,7 @@ def validate_dataset_directory(
         )
         raise SystemExit(error_msg)
     
-    # FILE-LEVEL VALIDATION (are the files readable?)
-    unreadable_files = []
-    for file in matching_files:
-        try:
-            # Check if file is readable by attempting to open it
-            with open(file, 'r', encoding='utf-8') as f:
-                # Try reading first line to ensure file isn't corrupted
-                f.readline()
-        except PermissionError:
-            unreadable_files.append((file.name, "Permission denied"))
-        except UnicodeDecodeError:
-            unreadable_files.append((file.name, "Invalid encoding (not UTF-8)"))
-        except OSError as e:
-            unreadable_files.append((file.name, str(e)))
-    
-    if unreadable_files:
-        files_info = "\n".join(
-            f"  - {name}: {reason}" for name, reason in unreadable_files
-        )
-        error_msg = (
-            f"Error: Some files in {directory_path} are not readable:\n"
-            f"{files_info}\n"
-            f"Check file permissions and encoding."
-        )
-        raise SystemExit(error_msg)
-    
+   
     # SUCCESS: All validations passed
     if verbose:
         print(
@@ -162,3 +138,59 @@ def validate_dataset_directory(
         )
     
     return directory_path.resolve()
+
+def validate_measurement_file(filepath: Path) -> Path:
+    """Validate a measurement file for existence, accessibility, and data content.
+    
+    This function performs comprehensive validation of a single measurement file,
+    checking that it is readable, non-empty, properly encoded, and contains at
+    least one data row beyond the header (not just header-only).
+    
+    Args:
+        filepath: Path object pointing to the measurement file (.txt CSV-formatted).
+    
+    Returns:
+        The validated absolute Path object (allows method chaining if needed).
+    
+    Raises:
+        SystemExit: With descriptive error message if any validation fails.
+                   - Empty file (0 bytes)
+                   - Permission denied
+                   - Invalid UTF-8 encoding
+                   - File contains only header, no data rows
+                   - OS-level errors (corrupted file, etc.)
+    
+    Examples:
+        >>> raw_file = Path('data/measurement_20260301_300K_1e-3mbar.txt')
+        >>> validated = validate_measurement_file(raw_file)
+        >>> # Now safe to parse validated file for I(V) data
+    """
+    # First check: do not want to open files when size is 0 bytes. Common in LabVIEW.
+    if filepath.stat().st_size == 0:
+        error_msg = (
+            f"Error: {filepath} is an empty file\n"
+            f"Please ensure the file contains data."
+        )
+        raise SystemExit(error_msg)
+    
+    try:
+        # Check if file is readable by attempting to open it
+        with open(filepath, 'r', encoding='utf-8') as f:
+            # Try reading first line to ensure file isn't corrupted
+            header = f.readline()
+            
+            # Check if file only contains header (no data rows)
+            second_line = f.readline()
+            if not second_line:
+                raise SystemExit(
+                    f"Error: {filepath.name} contains only the header, no data rows.\n"
+                    f"Please ensure the file contains measurement data."
+                )
+    except PermissionError:
+        raise SystemExit(f"Permission denied: {filepath.name}")
+    except UnicodeDecodeError:
+        raise SystemExit(f"Invalid encoding (not UTF-8): {filepath.name}")
+    except OSError as e:
+        raise SystemExit(f"OS-level error: {e}")
+    
+    return filepath.resolve()

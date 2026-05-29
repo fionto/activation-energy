@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from models import Metadata, Measurement, Elaborations, Dataset, DatasetCollection
 from constants import ColumnNames, CELSIUS_TO_KELVIN
-from utils import validate_dataset_directory, _safe_float, check_alignment
+from utils import validate_dataset_directory, _safe_float, check_alignment, validate_measurement_file
 from processes import linear_fit
 
 def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
@@ -27,6 +27,9 @@ def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
     
     """
     
+    # Checks that file exists, is not empty even after header
+    filepath = validate_measurement_file(filepath)
+
     # Read the raw .txt file (formatted in CSV)
     raw_df = pd.read_csv(filepath, sep=delimiter)
     
