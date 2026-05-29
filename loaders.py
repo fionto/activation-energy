@@ -1,9 +1,10 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from models import Measurement, Metadata
+from models import Metadata, Measurement, Elaborations, Dataset, DatasetCollection
 from constants import ColumnNames, CELSIUS_TO_KELVIN
 import utils
+import processes
 
 def load_measurement_csv(filepath: Path, delimiter=',') -> Measurement:
     """Load measurement data from a .txt file (formatted in CSV) and convert to 
@@ -100,3 +101,103 @@ def load_metadata_csv(filename: str) -> Metadata:
         temperature_k=temperature_k,
         alignment=alignment,
     )
+
+def load_and_process_dataset(measurement_file: Path) -> Dataset:
+    """Load a single measurement file and compute all elaborations.
+    
+    Loads raw I(V) measurement data from a .txt file, extracts metadata from the
+    filename, and computes linear fit elaborations on the full, positive, and
+    negative voltage regions.
+    
+    The processing pipeline includes:
+        1. Extracting sample metadata from the filename
+        2. Loading the CSV-formatted I(V) measurement data
+        3. Converting to DataFrame and separating positive/negative voltage regions
+        4. Computing linear fits (slope = resistance) for each region
+        5. Packaging everything into a Dataset container
+    
+    Args:
+        measurement_file: Path to the .txt file containing the I(V) measurement.
+            The filename must follow the standard format:
+            YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE[_(AB|BA)].txt
+            The file should contain CSV data with columns for voltage and current.
+    
+    Returns:
+        A Dataset object containing:
+            - metadata: Sample information, timestamp, pressure, temperature, alignment
+            - measurement: Raw I(V) data points
+            - elaborations: Linear fit results for global, positive, and negative regions
+    
+    Raises:
+    
+    """
+
+    # The acquisition pipeline via LabVIEW 
+    # stores METADATA in the .txt filename
+    metadata = load_metadata_csv(measurement_file.name)
+    measurement = load_measurement_csv(measurement_file)
+    voltage_current_df = Measurement.to_dataframe(measurement) # for elaborations i need a df
+
+    # Split data for linear fit
+    positive_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] > 0]
+    negative_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] < 0]
+
+    # Compute fits
+    elaborations = Elaborations(
+        global_linear_fit=processes.linear_fit(
+            voltage_current_df[ColumnNames.VOLTAGE], 
+            voltage_current_df[ColumnNames.CURRENT]
+        ),
+        positive_linear_fit=processes.linear_fit(
+            positive_VI_df[ColumnNames.VOLTAGE], 
+            positive_VI_df[ColumnNames.CURRENT]
+        ),
+        negative_linear_fit=processes.linear_fit(
+            negative_VI_df[ColumnNames.VOLTAGE], 
+            negative_VI_df[ColumnNames.CURRENT]
+        )
+    )
+
+    return Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
+
+def load_all_datasets(data_dir: Path) -> DatasetCollection:
+    """Load and process all measurement files in a directory.
+    
+    Scans a directory for all .txt files containing I(V) measurements, processes
+    each file individually, and aggregates them into a collection. Files are
+    processed in chronological order based on the timestamp embedded in their
+    filenames.
+    
+    The function validates the directory structure, filters for .txt files only,
+    and applies the complete processing pipeline (metadata extraction, data loading,
+    and elaborations) to each measurement file.
+    
+    Args:
+        data_dir: Path to the directory containing measurement .txt files.
+            The directory should contain only valid measurement files or the
+            validation step will filter out incompatible files.
+    
+    Returns:
+        A DatasetCollection object containing:
+            - datasets: List of Dataset objects for each successfully processed file
+            - summary_df: DataFrame with metadata and elaborations summary
+            - vdp_df: DataFrame with Van der Pauw resistance calculations
+    
+    Raises:
+        SystemExit: If directory validation fails (handled by 
+            validate_dataset_directory). Exit code 1 with descriptive error
+            message indicating the specific validation failure.
+    
+    Note:
+        Files are sorted by filename (which starts with YYYYMMDD_HHMMSS) to ensure
+        chronological ordering. Any non-.txt files in the directory are ignored.
+    
+    """
+    validated_dir = utils.validate_dataset_directory(data_dir, required_extension="*.txt", verbose=True)
+
+    datasets_list = [
+        load_and_process_dataset(measurement_file)
+        for measurement_file in sorted(validated_dir.glob("*.txt"))
+    ]
+    
+    return DatasetCollection(datasets=datasets_list)
