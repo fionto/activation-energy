@@ -10,7 +10,7 @@
   - Return compiled regex pattern or raw pattern string
   - Add docstring with example patterns matching
 
-- [ ] **Create `validate_filename_convention(filename: str, pattern) -> bool`**
+- [x] **Create `validate_filename_convention(filename: str, pattern) -> bool`**
   - Accept filename and regex pattern
   - Return True/False (simple check)
   - Does NOT attempt to parse metadata yet (that's parsing, not validation)

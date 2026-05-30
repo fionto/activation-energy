@@ -1,12 +1,13 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from models import Metadata, Measurement, Elaborations, Dataset, DatasetCollection
-from constants import ColumnNames, CELSIUS_TO_KELVIN
-from utils import validate_dataset_directory, _safe_float, check_alignment, validate_measurement_file
-from processes import linear_fit
+import models
+import constants
+import utils
+import processes
 
-def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
+
+def load_measurement_csv(filepath: Path, delimiter : str =',') -> models.Measurement:
     """Load measurement data from a .txt file (formatted in CSV) and convert to 
     Measurement object. With flexible delimiter support.
     
@@ -27,18 +28,15 @@ def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
     
     """
     
-    # Checks that file exists, is not empty even after header
-    filepath = validate_measurement_file(filepath)
-
     # Read the raw .txt file (formatted in CSV)
     raw_df = pd.read_csv(filepath, sep=delimiter)
     
     # Define mapping from file column names to standardized internal names
     column_mapping = {
-        'Voltage (V)': ColumnNames.VOLTAGE,
-        'Current (A)': ColumnNames.CURRENT,
-        'Standard Deviation (A)': ColumnNames.STD_DEV,
-        'Measurement delay (s)': ColumnNames.DELAY,
+        'Voltage (V)': constants.ColumnNames.VOLTAGE,
+        'Current (A)': constants.ColumnNames.CURRENT,
+        'Standard Deviation (A)': constants.ColumnNames.STD_DEV,
+        'Measurement delay (s)': constants.ColumnNames.DELAY,
     }
  
     # Remove leading/trailing whitespace from all column names
@@ -50,10 +48,10 @@ def load_measurement_csv(filepath: Path, delimiter : str =',') -> Measurement:
     raw_df = raw_df.rename(columns=column_mapping)
     
     # Validate and return as Measurement object
-    return Measurement.from_dataframe(raw_df)
+    return models.Measurement.from_dataframe(raw_df)
 
 
-def load_metadata_csv(filename: str) -> Metadata:
+def load_metadata_csv(filename: str) -> models.Metadata:
     """Parse measurement filename and extract metadata.
     
     Extracts metadata from a filename with the standard format:
@@ -93,11 +91,11 @@ def load_metadata_csv(filename: str) -> Metadata:
     alignment_raw = extra[0] if extra else None
 
     timestamp = datetime.strptime(date_str + time_str, '%Y%m%d%H%M%S')
-    pressure_torr = _safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
-    temperature_k = _safe_float(temp_str.removeprefix('T').removesuffix('C')) + CELSIUS_TO_KELVIN
-    alignment = check_alignment(alignment_raw)
+    pressure_torr = utils._safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
+    temperature_k = utils._safe_float(temp_str.removeprefix('T').removesuffix('C')) + constants.CELSIUS_TO_KELVIN
+    alignment = utils.check_alignment(alignment_raw)
 
-    return Metadata(
+    return models.Metadata(
         sample=sample_str,
         timestamp=timestamp,
         pressure_torr=pressure_torr,
@@ -105,7 +103,7 @@ def load_metadata_csv(filename: str) -> Metadata:
         alignment=alignment,
     )
 
-def load_and_process_dataset(measurement_file: Path) -> Dataset:
+def load_and_process_dataset(measurement_file: Path) -> models.Dataset:
     """Load a single measurement file and compute all elaborations.
     
     Loads raw I(V) measurement data from a .txt file, extracts metadata from the
@@ -142,71 +140,47 @@ def load_and_process_dataset(measurement_file: Path) -> Dataset:
     # stores METADATA in the .txt filename
     metadata = load_metadata_csv(measurement_file.name)
     measurement = load_measurement_csv(measurement_file)
-    voltage_current_df = Measurement.to_dataframe(measurement) # for elaborations i need a df
+    voltage_current_df = models.Measurement.to_dataframe(measurement) # for elaborations i need a df
 
     # Split data for linear fit
-    positive_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] > 0]
-    negative_VI_df = voltage_current_df[voltage_current_df[ColumnNames.VOLTAGE] < 0]
+    positive_VI_df = voltage_current_df[voltage_current_df[constants.ColumnNames.VOLTAGE] > 0]
+    negative_VI_df = voltage_current_df[voltage_current_df[constants.ColumnNames.VOLTAGE] < 0]
 
     # Compute fits
-    elaborations = Elaborations(
-        global_linear_fit=linear_fit(
-            voltage_current_df[ColumnNames.VOLTAGE], 
-            voltage_current_df[ColumnNames.CURRENT]
+    elaborations = models.Elaborations(
+        global_linear_fit=processes.linear_fit(
+            voltage_current_df[constants.ColumnNames.VOLTAGE], 
+            voltage_current_df[constants.ColumnNames.CURRENT]
         ),
-        positive_linear_fit=linear_fit(
-            positive_VI_df[ColumnNames.VOLTAGE], 
-            positive_VI_df[ColumnNames.CURRENT]
+        positive_linear_fit=processes.linear_fit(
+            positive_VI_df[constants.ColumnNames.VOLTAGE], 
+            positive_VI_df[constants.ColumnNames.CURRENT]
         ),
-        negative_linear_fit=linear_fit(
-            negative_VI_df[ColumnNames.VOLTAGE], 
-            negative_VI_df[ColumnNames.CURRENT]
+        negative_linear_fit=processes.linear_fit(
+            negative_VI_df[constants.ColumnNames.VOLTAGE], 
+            negative_VI_df[constants.ColumnNames.CURRENT]
         )
     )
 
-    return Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
+    return models.Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
 
-def load_all_datasets(data_dir: Path, verbose: bool = True) -> DatasetCollection:
+
+def load_all_datasets(filtered_files: list) -> models.DatasetCollection:
     """Load and process all measurement files in a directory.
-    
-    Scans a directory for all .txt files containing I(V) measurements, processes
-    each file individually, and aggregates them into a collection. Files are
-    processed in chronological order based on the timestamp embedded in their
-    filenames.
-    
-    The function validates the directory structure, filters for .txt files only,
-    and applies the complete processing pipeline (metadata extraction, data loading,
-    and elaborations) to each measurement file.
-    
+        
     Args:
-        data_dir: Path to the directory containing measurement .txt files.
-            The directory should contain only valid measurement files or the
-            validation step will filter out incompatible files.
-    
+        
     Returns:
-        A DatasetCollection object containing:
-            - datasets: List of Dataset objects for each successfully processed file
-            - summary_df: DataFrame with metadata and elaborations summary
-            - vdp_df: DataFrame with Van der Pauw resistance calculations
     
     Raises:
-        SystemExit: If directory validation fails (handled by 
-            validate_dataset_directory). Exit code 1 with descriptive error
-            message indicating the specific validation failure.
     
     Note:
-        Files are sorted by filename (which starts with YYYYMMDD_HHMMSS) to ensure
-        chronological ordering. Any non-.txt files in the directory are ignored.
-    
-    """
-    validated_dir = validate_dataset_directory(data_dir, required_extension="*.txt", verbose=verbose)
 
-    txt_files = sorted(validated_dir.glob("*.txt"))
+    """
+    
     datasets_list = []
-    
-    for i, measurement_file in enumerate(txt_files, 1):
-        if verbose:
-            print(f"Processing {i}/{len(txt_files)}: {measurement_file.name}")
+
+    for measurement_file in filtered_files:
         datasets_list.append(load_and_process_dataset(measurement_file))
-    
-    return DatasetCollection(datasets=datasets_list)
+
+    return models.DatasetCollection(datasets=datasets_list)
