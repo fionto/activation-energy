@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import datetime
 import pandas as pd
 from scipy.optimize import fsolve
 import numpy as np
-from constants import ColumnNames, MetadataFieldNames, LinearFitNames
+import constants
 
 # METADATA: Information about the environment (Sample ID, Timestamp, P, T)
 # Contains geometric information on how the measurement was spatially performed
@@ -27,30 +28,35 @@ class Measurement:
     data: pd.DataFrame  # Must contain: voltage_v, current_a, std_dev columns, delay_s
     
     def __post_init__(self):
-        required = ColumnNames.required()
+        required = constants.ColumnNames.required()
         missing = required - set(self.data.columns) # Set subtraction: find what's NOT in the DataFrame
         if missing:
             raise ValueError(f"Missing columns: {missing}")
     
     @property
     def voltage(self) -> pd.Series:
-        return self.data[ColumnNames.VOLTAGE]
+        return self.data[constants.ColumnNames.VOLTAGE]
     
     @property
     def current(self) -> pd.Series:
-        return self.data[ColumnNames.CURRENT]
+        return self.data[constants.ColumnNames.CURRENT]
     
     @property
     def std_dev(self) -> pd.Series:
-        return self.data[ColumnNames.STD_DEV]
+        return self.data[constants.ColumnNames.STD_DEV]
     
     @property
     def delay(self) -> pd.Series:
-        return self.data[ColumnNames.DELAY]
+        return self.data[constants.ColumnNames.DELAY]
     
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame):
-        return cls(data=df[[ColumnNames.VOLTAGE, ColumnNames.CURRENT, ColumnNames.STD_DEV, ColumnNames.DELAY]].copy())
+        return cls(data=df[[
+            constants.ColumnNames.VOLTAGE,
+            constants.ColumnNames.CURRENT,
+            constants.ColumnNames.STD_DEV,
+            constants.ColumnNames.DELAY
+            ]].copy())
     
     def to_dataframe(self):
         return self.data.copy()
@@ -140,14 +146,15 @@ class DatasetCollection:
 
         for d in self.datasets:
             recap = {
-                MetadataFieldNames.SAMPLE : d.metadata.sample,
-                MetadataFieldNames.TEMPERATURE_K : d.metadata.temperature_k,
-                MetadataFieldNames.ALIGNMENT : d.metadata.alignment,
-                #TODO: Fix constants
-                "global_slope" : d.elaborations.global_linear_fit.slope,            
-                "global_r_squared" : d.elaborations.global_linear_fit.r_squared,
-                "positive_slope" : d.elaborations.positive_linear_fit.slope,
-                "negative_slope" : d.elaborations.negative_linear_fit.slope,
+                constants.MetadataFieldNames.SAMPLE : d.metadata.sample,
+                constants.MetadataFieldNames.TEMPERATURE_K : d.metadata.temperature_k,
+                constants.MetadataFieldNames.ALIGNMENT : d.metadata.alignment,
+                constants.ReportFieldNames.GLOBAL_SLOPE : d.elaborations.global_linear_fit.slope,            
+                constants.ReportFieldNames.GLOBAL_R_SQUARED : d.elaborations.global_linear_fit.r_squared,
+                constants.ReportFieldNames.POSITIVE_SLOPE : d.elaborations.positive_linear_fit.slope,
+                constants.ReportFieldNames.POSITIVE_R_SQUARED : d.elaborations.positive_linear_fit.r_squared,
+                constants.ReportFieldNames.NEGATIVE_SLOPE : d.elaborations.negative_linear_fit.slope,
+                constants.ReportFieldNames.NEGATIVE_R_SQUARED : d.elaborations.negative_linear_fit.r_squared,
             }
             rows.append(recap)
         
@@ -208,3 +215,6 @@ class DatasetCollection:
         
         # Sort by temperature to ensure clean plotting
         return df.sort_values("temp_k").reset_index(drop=True)
+    
+
+#TODO: file management

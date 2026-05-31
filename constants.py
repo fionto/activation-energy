@@ -4,10 +4,10 @@ from typing import List, Set
 # FILE INFO
 ACCEPTED_EXTENSIONS = {".txt", ".csv"}
 
-# Temperature conversion
+# Conversion to Kelvin
 CELSIUS_TO_KELVIN = 273.15
 
-# Define conversion factors to Torr (1 Unit = X Torr)
+# Conversion factors to Torr (1 Unit = X Torr)
 CONVERSION_FACTORS = {
     "TORR": 1.0,
     "MTORR": 1e-3,
@@ -17,13 +17,13 @@ CONVERSION_FACTORS = {
     "ATM": 760.0,
 }
 
+
 class ColumnNames:
     """Centralized definition of all DataFrame column names."""
-
     VOLTAGE = "voltage_v"
     CURRENT = "current_a"
     STD_DEV = "std_dev"
-    DELAY = "delay_s"
+    DELAY   = "delay_s"
 
     @classmethod
     def required(cls) -> Set[str]:
@@ -38,12 +38,11 @@ class ColumnNames:
 
 class MetadataFieldNames:
     """Field names for the Metadata dataclass."""
-
-    SAMPLE = "sample"
-    TIMESTAMP = "timestamp"
-    PRESSURE_TORR = "pressure_torr"
-    TEMPERATURE_K = "temperature_k"
-    ALIGNMENT = "alignment"
+    SAMPLE          = "sample"
+    TIMESTAMP       = "timestamp"
+    PRESSURE_TORR   = "pressure_torr"
+    TEMPERATURE_K   = "temperature_k"
+    ALIGNMENT       = "alignment"
 
     @classmethod
     def all(cls) -> Set[str]:
@@ -59,10 +58,9 @@ class MetadataFieldNames:
 
 class LinearFitNames:
     """Field names for the linear fit parameters."""
-
-    SLOPE = "slope"
-    INTERCEPT = "intercept"
-    R_SQUARED = "r_squared"
+    SLOPE       = "slope"
+    INTERCEPT   = "intercept"
+    R_SQUARED   = "r_squared"
 
     @classmethod
     def all(cls) -> Set[str]:
@@ -73,6 +71,31 @@ class LinearFitNames:
             cls.R_SQUARED,
         }
 
+class ElaborationNames:
+    """Field names for the Elaboration dataclass."""
+    GLOBAL_LINEAR_FIT   = "global_linear_fit"
+    POSITIVE_LINEAR_FIT = "positive_linear_fit"
+    NEGATIVE_LINEAR_FIT = "negative_linear_fit"
+
+    @classmethod
+    def all(cls) -> Set[str]:
+        """Return all elaboration field names as a set."""
+        return{
+            cls.GLOBAL_LINEAR_FIT,
+            cls.POSITIVE_LINEAR_FIT,
+            cls.NEGATIVE_LINEAR_FIT,
+        }
+
+class ReportFieldNames:
+    """Report output field names (derived from elaborations)."""
+    # Compose from base names
+    GLOBAL_SLOPE        = f"{ElaborationNames.GLOBAL_LINEAR_FIT}_{LinearFitNames.SLOPE}"
+    GLOBAL_R_SQUARED    = f"{ElaborationNames.GLOBAL_LINEAR_FIT}_{LinearFitNames.R_SQUARED}"
+    POSITIVE_SLOPE      = f"{ElaborationNames.POSITIVE_LINEAR_FIT}_{LinearFitNames.SLOPE}"
+    POSITIVE_R_SQUARED  = f"{ElaborationNames.POSITIVE_LINEAR_FIT}_{LinearFitNames.R_SQUARED}"
+    NEGATIVE_SLOPE      = f"{ElaborationNames.NEGATIVE_LINEAR_FIT}_{LinearFitNames.SLOPE}"
+    NEGATIVE_R_SQUARED  = f"{ElaborationNames.NEGATIVE_LINEAR_FIT}_{LinearFitNames.R_SQUARED}"
+
 # Define mapping from file column names to standardized internal names
 # strict name they appear in the file (maybe in the future will change)
 COLUMN_MAPPING = {
@@ -81,6 +104,7 @@ COLUMN_MAPPING = {
     'Standard Deviation (A)': ColumnNames.STD_DEV,
     'Measurement delay (s)': ColumnNames.DELAY,
 }
+
 
 # NOTE: This pattern is designed to match against the file's STEM (filename without extension).
 # Extension validation (e.g., .txt) must be handled separately beforehand, allowing this
