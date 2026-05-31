@@ -1,4 +1,5 @@
 from pathlib import Path
+import constants
 
 def _safe_float(value_str: str) -> float:
     """
@@ -73,3 +74,37 @@ def print_discarded_files_report(validation_results: dict) -> None:
         print()
 
     print("=" * 60 + "\n")
+
+
+def normalize_pressure_to_torr(value_str: str, unit_str: str | None) -> float:
+    """Convert a pressure value string to Torr based on its unit suffix.
+    
+    Supported units (case-insensitive): bar, mbar, torr, mtorr, Pa, atm.
+    If unit_str is empty, unrecognized, or conversion fails, defaults to Torr.
+    
+    Args:
+        value_str: The raw string representation of the numeric pressure value.
+        unit_str: The raw string representation of the unit suffix (e.g., 'mbar').
+        
+    Returns:
+        The pressure value normalized to Torr as a float.
+    """
+
+    try:
+        # Convert numeric string safely
+        value = float(value_str)
+        
+        # Normalize unit string to uppercase; default to 'TORR' if empty or None
+        unit = (unit_str or "TORR").strip().upper()
+        
+        # Fetch conversion factor, fallback to 1.0 (Torr) if unit is unknown
+        factor = constants.CONVERSION_FACTORS.get(unit, 1.0)
+        
+        return value * factor
+
+    except (ValueError, TypeError):
+        # Fallback to safely trying to parse the value as pure Torr if something went wrong
+        try:
+            return float(value_str)
+        except (ValueError, TypeError):
+            raise ValueError(f"Could not parse numeric pressure value: {value_str}")

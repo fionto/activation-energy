@@ -22,88 +22,106 @@ def load_measurement_csv(filepath: Path, delimiter : str =',') -> models.Measure
         A Measurement object containing the validated measurement data.
     
     Raises:
-        FileNotFoundError: If the specified file does not exist.
-        ValueError: If required columns are missing from the .txt file.
-        pd.errors.ParserError: If the .txt file is malformed or cannot be parsed.
-    
+        ValueError: If the file cannot be parsed by pandas or is empty.
+        KeyError: If required measurement columns are missing from the file.
     """
     
-    # Read the raw .txt file (formatted in CSV)
-    raw_df = pd.read_csv(filepath, sep=delimiter)
+    # 1. Catch pandas parsing failures (e.g., parsing errors, completely empty files)
+    try:
+        raw_df = pd.read_csv(filepath, sep=delimiter)
+    except Exception as e:
+        raise ValueError(f"Failed to parse CSV file at {filepath}. Check delimiter or file integrity. Internal error: {e}")
+
+    # Explicitly catch completely empty files before doing column logic 
+    if raw_df.empty:
+        raise ValueError(f"The file at {filepath} is empty.")
     
-    # Define mapping from file column names to standardized internal names
-    column_mapping = {
-        'Voltage (V)': constants.ColumnNames.VOLTAGE,
-        'Current (A)': constants.ColumnNames.CURRENT,
-        'Standard Deviation (A)': constants.ColumnNames.STD_DEV,
-        'Measurement delay (s)': constants.ColumnNames.DELAY,
-    }
- 
     # Remove leading/trailing whitespace from all column names
     # (.str is a pandas accessor that applies string methods to each column name)
     raw_df.columns = raw_df.columns.str.strip()
     
-    # Rename columns from their original names (as they appear in the file)
-    # to our standardized internal column names using the mapping dictionary
-    raw_df = raw_df.rename(columns=column_mapping)
+    # Validate that all required columns actually exist before renaming
+    missing_columns = [col for col in constants.COLUMN_MAPPING if col not in raw_df.columns]
+    if missing_columns:
+        raise KeyError(
+            f"The file is missing required columns: {missing_columns}. "
+            f"Found columns: {list(raw_df.columns)}. Ensure the correct delimiter '{delimiter}' was used."
+        )
+    
+    # Rename columns safely now that we know they exist
+    raw_df = raw_df.rename(columns=constants.COLUMN_MAPPING)
     
     # Validate and return as Measurement object
     return models.Measurement.from_dataframe(raw_df)
 
 
 def load_metadata_csv(filename: str) -> models.Metadata:
-    """Parse measurement filename and extract metadata.
+    """Parse measurement filename and extract metadata using regex.
     
-    Extracts metadata from a filename with the standard format:
+    Extracts metadata from a filename stem (without extension) matching the format:
+        YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE[_(AB|BA)]
     
-        YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE[_(AB|BA)].txt
-    
-    The Van der Pauw alignment suffix (AB or BA) is optional. The pressure
-    suffix 'torr' and temperature suffix 'C' are optional and will be stripped.
+    The function handles units dynamically:
+        - Pressure defaults to Torr (stripping any alphabetical unit).
+        - Temperature conversions dynamically check for 'C' or 'K' suffixes.
     
     Args:
-        filename: The measurement filename to parse (with or without .txt extension).
+        filename: The measurement filename to parse. If a full name or path is
+            passed, it will automatically extract the stem.
     
     Returns:
-        A Metadata object containing:
-            - sample: Sample name extracted from filename
-            - timestamp: Datetime object parsed from YYYYMMDD_HHMMSS
-            - pressure_torr: Pressure value in Torr
-            - temperature_k: Temperature value in Kelvin
-            - alignment: Van der Pauw alignment ('AB', 'BA', or None)
+        A Models.Metadata object containing parsed and normalized fields.
     
     Raises:
-        ValueError: If filename format is invalid (wrong number of fields or
-            unparseable numeric values in pressure/temperature fields).
-    
+        ValueError: If the filename does not match the expected pattern, if 
+            numeric values are unparseable, or if pressure/temperature unit 
+            conversions fail.
     """
-    
-    filename = filename.removesuffix(".txt")  # only working from Python 3.9+
-    parts = filename.split('_')
-
-    if len(parts) not in {5, 6}:
+    match = constants.FILENAME_PATTERN.match(filename)
+    if not match:
         raise ValueError(
-            f"Expected filename with 5 or 6 fields separated by '_', "
-            f"got {len(parts)}: {filename}"
+            f"Filename format is invalid. Does not match expected pattern: {filename}"
         )
+    # Extract all named groups into a dictionary
+    data = match.groupdict()
 
-    date_str, time_str, sample_str, pressure_str, temp_str, *extra = parts
-    alignment_raw = extra[0] if extra else None
+    try:
+        # 1. Parse Timestamp
+        timestamp = datetime.strptime(data["ts"], "%Y%m%d_%H%M%S")
+        
+        # 2. Parse Pressure and normalize to Torr dynamically)
+        pressure_torr = utils.normalize_pressure_to_torr(
+            data["pressure"], 
+            data["press_unit"]
+        )
+        
+        # 3. Parse Temperature & Handle Units dynamically
+        temp_val = utils._safe_float(data["temperature"])
+        temp_unit = (data["temp_unit"] or "C").upper()  # Default to Celsius if not specified
+        
+        if temp_unit == "C":
+            temperature_k = temp_val + constants.CELSIUS_TO_KELVIN
+        else:
+            temperature_k = temp_val  # Already in Kelvin
+            
+        # 4. Parse Alignment
+        alignment = utils.check_alignment(data["alignment"])
 
-    timestamp = datetime.strptime(date_str + time_str, '%Y%m%d%H%M%S')
-    pressure_torr = utils._safe_float(pressure_str.removeprefix('P').removesuffix('torr'))
-    temperature_k = utils._safe_float(temp_str.removeprefix('T').removesuffix('C')) + constants.CELSIUS_TO_KELVIN
-    alignment = utils.check_alignment(alignment_raw)
+    except (ValueError, TypeError, AttributeError) as err:
+        raise ValueError(
+            f"Failed to parse numeric or date fields from filename '{filename}': {err}"
+        ) from err
 
     return models.Metadata(
-        sample=sample_str,
+        sample=data["sample"],
         timestamp=timestamp,
         pressure_torr=pressure_torr,
         temperature_k=temperature_k,
         alignment=alignment,
     )
 
-def load_and_process_dataset(measurement_file: Path) -> models.Dataset:
+
+def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> models.Dataset:
     """Load a single measurement file and compute all elaborations.
     
     Loads raw I(V) measurement data from a .txt file, extracts metadata from the
@@ -122,6 +140,7 @@ def load_and_process_dataset(measurement_file: Path) -> models.Dataset:
             The filename must follow the standard format:
             YYYYMMDD_HHMMSS_SAMPLE_PPRESSURE_TTEMPERATURE[_(AB|BA)].txt
             The file should contain CSV data with columns for voltage and current.
+        delimiter: What delimiter is used in the CSV data. Default = comma.
     
     Returns:
         A Dataset object containing:
@@ -130,17 +149,22 @@ def load_and_process_dataset(measurement_file: Path) -> models.Dataset:
             - elaborations: Linear fit results for global, positive, and negative regions
     
     Raises:
-        FileNotFoundError: If measurement_file does not exist.
-        ValueError: If filename format is invalid, CSV data is malformed, 
-            or required columns (VOLTAGE, CURRENT) are missing.
-        pd.errors.ParserError: If the .txt file cannot be parsed as CSV.
+        ValueError: If the filename metadata parsing fails, the CSV is empty, 
+                    or the CSV cannot be parsed by pandas.
+        KeyError: If required measurement columns are missing from the file.
+        ZeroDivisionError: Or other calculation errors if linear fitting fails 
+                           due to empty or insufficient data points.
     """
 
     # The acquisition pipeline via LabVIEW 
-    # stores METADATA in the .txt filename
-    metadata = load_metadata_csv(measurement_file.name)
-    measurement = load_measurement_csv(measurement_file)
-    voltage_current_df = models.Measurement.to_dataframe(measurement) # for elaborations i need a df
+    # stores METADATA in the filename
+    metadata = load_metadata_csv(measurement_file.stem) # files are already prefiltered
+    
+    # Load and Validate Measurement Data
+    measurement = load_measurement_csv(measurement_file, delimiter=delimiter)
+      
+    # Extract DataFrame for elaborations
+    voltage_current_df = models.Measurement.to_dataframe(measurement)
 
     # Split data for linear fit
     positive_VI_df = voltage_current_df[voltage_current_df[constants.ColumnNames.VOLTAGE] > 0]
@@ -166,21 +190,30 @@ def load_and_process_dataset(measurement_file: Path) -> models.Dataset:
 
 
 def load_all_datasets(filtered_files: list) -> models.DatasetCollection:
-    """Load and process all measurement files in a directory.
-        
+    """Load and parse dataset files into a collection object.
+    
     Args:
-        
+        file_paths: List of validated Path objects to dataset files.
+    
     Returns:
+        A collection object containing parsed data.
     
     Raises:
-    
-    Note:
-
+        ValueError: 
+            -If the file cannot be parsed by pandas or is empty.
+            -If the filename does not match the expected pattern, 
+            -If numeric values are unparseable
+            -If pressure/temperature unit conversions fail.
+        KeyError: 
+            -If required measurement columns are missing from the file.
+        ZeroDivisionError: 
+            -Calculation errors if linear fitting fails due to empty 
+                or insufficient data points.
     """
     
     datasets_list = []
 
-    for measurement_file in filtered_files:
+    for measurement_file in filtered_files:  
         datasets_list.append(load_and_process_dataset(measurement_file))
 
     return models.DatasetCollection(datasets=datasets_list)
