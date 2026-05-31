@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict, Union, Any
 import constants
 
 def _safe_float(value_str: str) -> float:
@@ -36,46 +37,6 @@ def check_alignment(alignment_str: str | None) -> str | None:
             raise ValueError(f"Invalid VdP configuration: {alignment_str}")
         
 
-def print_discarded_files_report(validation_results: dict) -> None:
-    """
-    Prints a formatted summary report of all files that were rejected
-    during the dataset validation process.
-    """
-    rejected_files = validation_results.get("rejected", {})
-    accepted_count = len(validation_results.get("accepted", []))
-    rejected_count = len(rejected_files)
-    total_count = accepted_count + rejected_count
-
-    print("\n" + "=" * 60)
-    print("         DATASET VALIDATION DISCARD REPORT         ")
-    print("=" * 60)
-    print(f"Total Files Scanned: {total_count}")
-    print(f"Accepted:            {accepted_count}")
-    print(f"Discarded:           {rejected_count}")
-    print("-" * 60)
-
-    if not rejected_files:
-        print("✅ Clean run! No files were discarded.")
-        print("=" * 60 + "\n")
-        return
-
-    print(f"{'FILE NAME':<35} | {'REASON FOR DISCARD'}")
-    print("-" * 60)
-
-    # Sort by path name so the output is deterministic and organized
-    for file_path, reason in sorted(rejected_files.items(), key=lambda x: x[0].name):
-        # If the key is a string instead of a Path object, convert it
-        path_obj = Path(file_path) if isinstance(file_path, str) else file_path
-        
-        # Print the concise table row
-        print(f"{path_obj.name:<35} | {reason}")
-        # Print the full path indented underneath for debugging context
-        print(f"  └─ Source: {path_obj}")
-        print()
-
-    print("=" * 60 + "\n")
-
-
 def normalize_pressure_to_torr(value_str: str, unit_str: str | None) -> float:
     """Convert a pressure value string to Torr based on its unit suffix.
     
@@ -108,3 +69,62 @@ def normalize_pressure_to_torr(value_str: str, unit_str: str | None) -> float:
             return float(value_str)
         except (ValueError, TypeError):
             raise ValueError(f"Could not parse numeric pressure value: {value_str}")
+        
+
+def _render_pipeline_report(
+    title: str, 
+    accepted_count: int, 
+    rejected_files: Dict[Union[Path, str], str], 
+    success_message: str,
+    column_two_header: str
+) -> None:
+    """Internal helper to render a standardized pipeline execution report."""
+    rejected_count = len(rejected_files)
+    total_count = accepted_count + rejected_count
+
+    print("\n" + "=" * 60)
+    print(f"{title:^60}")
+    print("=" * 60)
+    print(f"Total Files Attempted: {total_count}")
+    print(f"Passed Step:           {accepted_count}")
+    print(f"Failed Step:           {rejected_count}")
+    print("-" * 60)
+
+    if not rejected_files:
+        print(f"✅ {success_message}")
+        print("=" * 60 + "\n")
+        return
+
+    print(f"{'FILE NAME':<35} | {column_two_header}")
+    print("-" * 60)
+
+    for file_path, reason in sorted(rejected_files.items(), key=lambda x: Path(x[0]).name):
+        path_obj = Path(file_path)
+        print(f"{path_obj.name:<35} | {reason}")
+        print(f"  └─ Source: {path_obj}\n")
+
+    print("=" * 60 + "\n")
+
+
+# --- Functions Exposed to Main ---
+
+def print_discarded_files_report(validation_results: dict) -> None:
+    """Prints a formatted summary report of the dataset validation phase."""
+    _render_pipeline_report(
+        title="DATASET VALIDATION DISCARD REPORT",
+        accepted_count=len(validation_results.get("accepted", [])), # Handles List
+        rejected_files=validation_results.get("rejected", {}),
+        success_message="Clean run! No files were discarded.",
+        column_two_header="REASON FOR DISCARD"
+    )
+
+
+def print_loading_failures_report(loading_results: dict) -> None:
+    """Prints a formatted summary report of the dataset ingestion phase."""
+    _render_pipeline_report(
+        title="DATASET LOADING & PROCESSING REPORT",
+        accepted_count=len(loading_results.get("accepted", {})), # Handles Dict
+        rejected_files=loading_results.get("rejected", {}),
+        success_message="Clean run! All files loaded successfully.",
+        column_two_header="FAILURE REASON / ERROR"
+    )

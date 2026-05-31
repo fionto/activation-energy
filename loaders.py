@@ -1,3 +1,18 @@
+"""
+Measurement Data Ingestion and Processing Module.
+
+This module handles the loading, parsing, and initial data processing of I(V) 
+measurement data files generated via LabVIEW. It extracts metadata encoded 
+directly in the file naming convention, reads raw CSV/TXT data, validates 
+internal schemas, and runs localized linear fitting routines to compute 
+global and regional sample resistance.
+
+The module features a pipeline designed to isolate individual file processing failures,
+aggregating successful parses while capturing and summarizing file-level 
+errors for centralized reporting.
+"""
+
+
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -5,7 +20,7 @@ from typing import List
 import models
 import constants
 import utils
-import processes
+import calculations
 
 
 def load_measurement_csv(filepath: Path, delimiter : str =',') -> models.Measurement:
@@ -17,7 +32,7 @@ def load_measurement_csv(filepath: Path, delimiter : str =',') -> models.Measure
     
     Args:
         filepath: Path to the .txt file containing measurement data.
-        delimiter: what delimiter is used in the .txt files. Default = comma
+        delimiter: The separator string used to split columns. Defaults to ','.
     
     Returns:
         A Measurement object containing the validated measurement data.
@@ -162,7 +177,7 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
     # Load and Validate Measurement Data
     measurement = load_measurement_csv(measurement_file, delimiter=delimiter)
       
-    # Extract DataFrame for elaborations
+    # Convert Measurement object back to DataFrame for elaborations
     voltage_current_df = models.Measurement.to_dataframe(measurement)
 
     # Split data for linear fit
@@ -171,15 +186,15 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
 
     # Compute fits
     elaborations = models.Elaborations(
-        global_linear_fit=processes.linear_fit(
+        global_linear_fit=calculations.linear_fit(
             voltage_current_df[constants.ColumnNames.VOLTAGE], 
             voltage_current_df[constants.ColumnNames.CURRENT]
         ),
-        positive_linear_fit=processes.linear_fit(
+        positive_linear_fit=calculations.linear_fit(
             positive_VI_df[constants.ColumnNames.VOLTAGE], 
             positive_VI_df[constants.ColumnNames.CURRENT]
         ),
-        negative_linear_fit=processes.linear_fit(
+        negative_linear_fit=calculations.linear_fit(
             negative_VI_df[constants.ColumnNames.VOLTAGE], 
             negative_VI_df[constants.ColumnNames.CURRENT]
         )
@@ -190,10 +205,12 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
 
 def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> dict:
     """Load and parse dataset files into a collection object.
+
+    File-level processing exceptions are caught internally to 
+    prevent batch failure, allowing valid datasets to load while 
+    capturing rejections in a summary dictionary.
     
-    Errors are intentionally not caught here so they can bubble up directly
-    to the main application entry point for centralized handling.
-    
+  
     Args:
         filtered_files: List of validated Path objects to dataset files.
         delimiter: What delimiter is used in the CSV data. Default = comma.
@@ -223,8 +240,8 @@ def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> dict:
         except ZeroDivisionError:
             loading_summary ["rejected"][full_path] = "Data analysis failed"
             continue
-        except Exception:
-            loading_summary ["rejected"][full_path] = "Unexpected system error"
+        except Exception as e:
+            loading_summary ["rejected"][full_path] = f"Unexpected system error: {str(e)}"
             continue
         
         # File passed all validations

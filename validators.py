@@ -93,7 +93,7 @@ def validate_dataset_directory(directory_path: Path, verbose: bool = False) -> P
     except PermissionError as e:
         raise PermissionError(
             f"Permission denied reading directory: {directory_path}"
-        ) from None
+        ) from e
     except OSError as e:
         raise OSError(
             f"OS-level error accessing directory {directory_path}: {e}"
@@ -114,9 +114,9 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
     """Scan a directory and validate all dataset files against criteria.
  
     Processes all files in the validated directory and filters them based on:
-    1. File extension (.txt or .csv only).
-    2. Filename format (must match the naming convention pattern).
-    3. File size (must not be empty).
+    1. File extension parity against allowed system structures.
+    2. Filename format validation via target regular expressions.
+    3. File metrics validation (must not be empty).
     4. Content readability (must be valid UTF-8 with at least a header and data line).
  
     Files that fail any check are placed in the "rejected" dict with the reason.
@@ -189,15 +189,13 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
             continue
  
         # Validate content: must be readable UTF-8 with at least header + data
+        has_content = True
         try:
             with open(measurement_file, "r", encoding="utf-8") as f:
-                header = f.readline()
+                _header = f.readline()
                 data_line = f.readline()
                 if not data_line:
-                    validation_summary["rejected"][full_path] = (
-                        "File contains only header, no data lines"
-                    )
-                    continue
+                    has_content = False
         except PermissionError:
             validation_summary["rejected"][full_path] = "Permission denied reading file"
             continue
@@ -208,10 +206,12 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
             validation_summary["rejected"][full_path] = f"Filesystem error: {e}"
             continue
  
-        # File passed all validations
+        if not has_content:
+            validation_summary["rejected"][full_path] = "File contains only header, no data lines"
+            continue
+
         validation_summary["accepted"].append(full_path)
  
-    # Require at least some files to be accepted
     if not validation_summary["accepted"]:
         raise ValueError(
             f"All {len(validation_summary['rejected'])} files in {validated_dir} were rejected. "

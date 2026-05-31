@@ -30,14 +30,14 @@ A rough development roadmap from raw file handling to final plotting.
 
 * [x] Extract temperature from filename or file content
 * [x] Standardize temperature units (e.g., Kelvin)
-* [ ] Associate each dataset with its temperature
-* [ ] Sort datasets by temperature
+* [x] Associate each dataset with its temperature
+* [x] Sort datasets by temperature
 
 ---
 
 ## ⚙️ Data Processing
 
-* [ ] Select relevant voltage region (optional filtering)
+* [x] Select relevant voltage region (optional filtering)
 * [ ] Compute derived quantities (e.g., conductance or current at fixed voltage)
 * [ ] Prepare data for Arrhenius-like transformation
 * [ ] Compute inverse temperature (1/T)
