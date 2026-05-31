@@ -1,5 +1,4 @@
 import re
-import sys
 import utils
 from pathlib import Path
 
@@ -38,76 +37,50 @@ def validate_filename(filename: str, pattern: re.Pattern) -> bool:
     return False if not m else True
 
 
-def validate_dataset_directory(
-    directory_path: Path,
-    verbose: bool = False
-) -> Path:
+def validate_dataset_directory(directory_path: Path, verbose: bool = False) -> Path:
     """Validate dataset directory for existence, accessibility, and content.
-    
-    This function performs validation of the dataset directory, checking 
-    that it exists and is a directory.
     
     Args:
         directory_path: Path object pointing to the dataset directory.
-        naming_pattern: A compiled regular expression object
         verbose: Whether to print validation messages (default: False).
     
     Returns:
-        The validated Path object (allows method chaining if needed).
+        The validated Path object.
     
     Raises:
-        SystemExit: With descriptive error message if any validation fails.
-                   Exit code 1 for all directory/file validation errors.
-    
-    Examples:
-        >>> raw_dir = Path(__file__).parent / 'data' / 'UH70-FS'
-        >>> validated_dir = validate_dataset_directory(raw_dir)
-        >>> # Now safe to use validated_dir for file operations
+        FileNotFoundError: If the directory does not exist.
+        NotADirectoryError: If the path exists but is not a directory.
+        PermissionError: If the directory cannot be read.
+        OSError: For other filesystem-level errors.
     """
     
-    # EXISTENCE CHECK OF DIRECTORY
+    # EXISTENCE CHECK
     if not directory_path.exists():
-        error_msg = (
-            f"Error: Directory not found at {directory_path}\n"
-            f"Expected path: {directory_path.resolve()}\n"
-            f"Please ensure the directory exists."
+        raise FileNotFoundError(
+            f"Directory not found at {directory_path}"
         )
-        raise SystemExit(error_msg)
 
-    # TYPE CHECK (is it actually a directory?)
+    # TYPE CHECK
     if not directory_path.is_dir():
-        error_msg = (
-            f"Error: Path exists but is not a directory: {directory_path}\n"
-            f"Type: {directory_path.stat().st_mode}\n"
-            f"This path points to a file, not a directory."
+        raise NotADirectoryError(
+            f"Path exists but is not a directory: {directory_path}"
         )
-        raise SystemExit(error_msg)
     
-    # PERMISSIONS CHECK (can we read it?)
+    # PERMISSIONS CHECK
     try:
-        # Attempting to list directory contents tests read permission
         list(directory_path.iterdir())
     except PermissionError:
-        error_msg = (
-            f"Error: Permission denied reading directory: {directory_path}\n"
-            f"Current user does not have read permissions.\n"
-            f"Try running with appropriate privileges or check file ownership."
-        )
-        raise SystemExit(error_msg)
+        raise PermissionError(
+            f"Permission denied reading directory: {directory_path}"
+        ) from None
     except OSError as e:
-        error_msg = (
-            f"Error: OS-level error accessing directory: {directory_path}\n"
-            f"Details: {e}\n"
-            f"This may indicate a network path issue or filesystem problem."
-        )
-        raise SystemExit(error_msg)
+        raise OSError(
+            f"OS-level error accessing directory: {directory_path}: {e}"
+        ) from e
     
-    # SUCCESS: All validations passed
+    # SUCCESS
     if verbose:
-        print(
-            f"✓ Dataset directory validated successfully\n"
-            f"  Location: {directory_path.resolve()}\n"
-        )
+        print(f"✅ Dataset directory validated successfully at {directory_path.resolve()}")
     
     return directory_path.resolve()
 
@@ -122,7 +95,7 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
         "accepted": [],
         "rejected": {}
     }
-
+    
     validated_dir = validate_dataset_directory(data_dir, verbose=verbose)
 
     # Grab ALL files in the directory
@@ -130,7 +103,9 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
 
     # CRASH HARD 1: The directory is completely empty of any files
     if not all_files:
-        sys.exit(f"\n❌ FATAL ERROR: No files found in directory: '{validated_dir}'")
+        raise ValueError(
+            f"\nNo files found in directory: '{validated_dir}'"
+        )
     
     for i, measurement_file in enumerate(all_files, 1):
         full_path = measurement_file.resolve()
@@ -177,10 +152,9 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
     # CRASH HARD 2: Files were found, but 100% of them were rejected
     if not results["accepted"]:
         utils.print_discarded_files_report(results)
-
-        sys.exit(
-            f"❌ FATAL ERROR: All {len(results['rejected'])} file(s) in "
-            f"'{validated_dir}' were invalid. Execution halted."
+        raise ValueError(
+            f"All {len(results['rejected'])} file(s) in '{validated_dir}' were rejected. "
+            f"No valid datasets found."
         )
     
     return results
