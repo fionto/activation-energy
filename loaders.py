@@ -188,7 +188,7 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
     return models.Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
 
 
-def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> models.DatasetCollection:
+def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> dict:
     """Load and parse dataset files into a collection object.
     
     Errors are intentionally not caught here so they can bubble up directly
@@ -206,10 +206,35 @@ def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> model
         KeyError: If required measurement columns are missing.
         ZeroDivisionError: If linear fitting logic crashes during iteration.
     """
-    datasets_list = []
-
+    
+    loading_summary = {"accepted": {}, "rejected": {}}
+    
     for measurement_file in filtered_files:  
-        dataset = load_and_process_dataset(measurement_file, delimiter=delimiter)
-        datasets_list.append(dataset)
+        full_path = measurement_file.resolve()
+        
+        try:
+            dataset = load_and_process_dataset(measurement_file, delimiter=delimiter)
+        except ValueError:
+            loading_summary ["rejected"][full_path] = "Invalid file content or naming format"
+            continue
+        except KeyError:
+            loading_summary ["rejected"][full_path] = "Missing required CSV columns"
+            continue
+        except ZeroDivisionError:
+            loading_summary ["rejected"][full_path] = "Data analysis failed"
+            continue
+        except Exception:
+            loading_summary ["rejected"][full_path] = "Unexpected system error"
+            continue
+        
+        # File passed all validations
+        loading_summary["accepted"][full_path] = dataset
 
-    return models.DatasetCollection(datasets=datasets_list)
+    # Require at least some files to be accepted
+    if not loading_summary["accepted"]:
+        raise ValueError(
+            f"All {len(loading_summary['rejected'])} files were rejected. "
+            f"No valid datasets found."
+        )
+    
+    return loading_summary

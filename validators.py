@@ -148,7 +148,7 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
         >>> print(f"Valid files: {len(results['accepted'])}")
         >>> print(f"Invalid files: {len(results['rejected'])}")
     """
-    results = {"accepted": [], "rejected": {}}
+    validation_summary = {"accepted": [], "rejected": {}}
  
     # Validate the directory itself
     validated_dir = validate_dataset_directory(data_dir, verbose=verbose)
@@ -171,7 +171,7 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
  
         # Validate file extension
         if measurement_file.suffix.lower() not in constants.ACCEPTED_EXTENSIONS:
-            results["rejected"][full_path] = (
+            validation_summary["rejected"][full_path] = (
                 f"Unsupported file extension: {measurement_file.suffix}"
             )
             continue
@@ -180,12 +180,12 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
         # Pass .stem (filename without extension) to decouple the regex pattern 
         # from the file format, keeping pattern matching clean and uniform.
         if not validate_filename(measurement_file.stem, pattern):
-            results["rejected"][full_path] = "Filename does not match pattern"
+            validation_summary["rejected"][full_path] = "Filename does not match pattern"
             continue
  
         # Check that file is not empty
         if measurement_file.stat().st_size == 0:
-            results["rejected"][full_path] = "Empty file"
+            validation_summary["rejected"][full_path] = "Empty file"
             continue
  
         # Validate content: must be readable UTF-8 with at least header + data
@@ -194,28 +194,28 @@ def validate_all_datasets(data_dir: Path, pattern: re.Pattern, verbose: bool = T
                 header = f.readline()
                 data_line = f.readline()
                 if not data_line:
-                    results["rejected"][full_path] = (
+                    validation_summary["rejected"][full_path] = (
                         "File contains only header, no data lines"
                     )
                     continue
         except PermissionError:
-            results["rejected"][full_path] = "Permission denied reading file"
+            validation_summary["rejected"][full_path] = "Permission denied reading file"
             continue
         except UnicodeDecodeError:
-            results["rejected"][full_path] = "File is not valid UTF-8 encoded"
+            validation_summary["rejected"][full_path] = "File is not valid UTF-8 encoded"
             continue
         except OSError as e:
-            results["rejected"][full_path] = f"Filesystem error: {e}"
+            validation_summary["rejected"][full_path] = f"Filesystem error: {e}"
             continue
  
         # File passed all validations
-        results["accepted"].append(full_path)
+        validation_summary["accepted"].append(full_path)
  
     # Require at least some files to be accepted
-    if not results["accepted"]:
+    if not validation_summary["accepted"]:
         raise ValueError(
-            f"All {len(results['rejected'])} files in {validated_dir} were rejected. "
+            f"All {len(validation_summary['rejected'])} files in {validated_dir} were rejected. "
             f"No valid datasets found."
         )
  
-    return results
+    return validation_summary
