@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+from typing import List
 import models
 import constants
 import utils
@@ -149,11 +150,9 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
             - elaborations: Linear fit results for global, positive, and negative regions
     
     Raises:
-        ValueError: If the filename metadata parsing fails, the CSV is empty, 
-                    or the CSV cannot be parsed by pandas.
+        ValueError: If filename validation fails, or file reading issues occur.
         KeyError: If required measurement columns are missing from the file.
-        ZeroDivisionError: Or other calculation errors if linear fitting fails 
-                           due to empty or insufficient data points.
+        ZeroDivisionError: Or other calculation errors if linear fitting fails.
     """
 
     # The acquisition pipeline via LabVIEW 
@@ -189,31 +188,28 @@ def load_and_process_dataset(measurement_file: Path, delimiter: str = ',') -> mo
     return models.Dataset(metadata=metadata, measurement=measurement, elaborations=elaborations)
 
 
-def load_all_datasets(filtered_files: list) -> models.DatasetCollection:
+def load_all_datasets(filtered_files: List[Path], delimiter: str = ',') -> models.DatasetCollection:
     """Load and parse dataset files into a collection object.
     
+    Errors are intentionally not caught here so they can bubble up directly
+    to the main application entry point for centralized handling.
+    
     Args:
-        file_paths: List of validated Path objects to dataset files.
+        filtered_files: List of validated Path objects to dataset files.
+        delimiter: What delimiter is used in the CSV data. Default = comma.
     
     Returns:
         A collection object containing parsed data.
     
     Raises:
-        ValueError: 
-            -If the file cannot be parsed by pandas or is empty.
-            -If the filename does not match the expected pattern, 
-            -If numeric values are unparseable
-            -If pressure/temperature unit conversions fail.
-        KeyError: 
-            -If required measurement columns are missing from the file.
-        ZeroDivisionError: 
-            -Calculation errors if linear fitting fails due to empty 
-                or insufficient data points.
+        ValueError: If filename validation fails, or file reading issues occur.
+        KeyError: If required measurement columns are missing.
+        ZeroDivisionError: If linear fitting logic crashes during iteration.
     """
-    
     datasets_list = []
 
     for measurement_file in filtered_files:  
-        datasets_list.append(load_and_process_dataset(measurement_file))
+        dataset = load_and_process_dataset(measurement_file, delimiter=delimiter)
+        datasets_list.append(dataset)
 
     return models.DatasetCollection(datasets=datasets_list)

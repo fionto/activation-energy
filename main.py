@@ -40,11 +40,25 @@ def main():
     utils.print_discarded_files_report(directory_content)
     
     # LOADING PHASE: parse and transform data
-
-
-    # Load and transform data to my data structure
-    collection = loaders.load_all_datasets(directory_content['accepted'])
+    print("\n⏳ Loading and processing data...")
     
+    try:
+        # Load and transform data to my data structure
+        collection = loaders.load_all_datasets(directory_content['accepted'], delimiter=',')
+        
+    except ValueError as e:
+        print(f"❌ Processing aborted: Invalid file content or naming format\n   {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyError as e:
+        print(f"❌ Processing aborted: Missing required CSV columns\n   {e}", file=sys.stderr)
+        sys.exit(1)
+    except ZeroDivisionError as e:
+        print(f"❌ Processing aborted: Data analysis failed (e.g., trying to fit insufficient data points)\n   {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Processing aborted: Unexpected system error\n   {e}", file=sys.stderr)
+        sys.exit(1)
+   
     # Display and analyze
     print(collection.summary_df)
     
