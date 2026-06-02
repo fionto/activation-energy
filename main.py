@@ -13,6 +13,7 @@ import loaders
 import models
 import utils
 import validators
+import writers
 
 
 def main():
@@ -51,7 +52,8 @@ def main():
         sys.exit(1)
 
     # Output file-level structural issues before attempt processing
-    utils.print_discarded_files_report(directory_content)
+    report_discarded = writers.write_discarded_files_report(directory_content)
+    print(report_discarded)
     
     # =========================================================================
     # PHASE 3: DATA INGESTION & MATHEMATICAL PROCESSING
@@ -67,7 +69,8 @@ def main():
         sys.exit(1)
 
     # Output processing/mathematical extraction failures (e.g., div by zero)
-    utils.print_loading_failures_report(loaded_content)
+    report_failures = writers.write_loading_failures_report(loaded_content)
+    print(report_failures)
 
     # =========================================================================
     # PHASE 4: MODEL RESOLUTION & DATA AGGREGATION
